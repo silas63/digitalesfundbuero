@@ -67,14 +67,10 @@ st.markdown(
             #312e81 50%,
             #075985 100%
         );
-
         border-radius: 28px;
         padding: 40px;
         margin-bottom: 25px;
-
-        box-shadow:
-            0 20px 50px rgba(15, 23, 42, 0.20);
-
+        box-shadow: 0 20px 50px rgba(15, 23, 42, 0.20);
         border: 1px solid rgba(255,255,255,0.12);
     }
 
@@ -163,7 +159,7 @@ st.markdown(
 
     </style>
     """,
-    unsafe_allow_html=True,
+    unsafe_allow_html=True
 )
 
 
@@ -195,11 +191,11 @@ def load_items():
 def save_items(items):
     DATA_DIR.mkdir(exist_ok=True)
 
-    temp_file = DATA_DIR / "fundstuecke.tmp"
+    temporary_file = DATA_DIR / "fundstuecke.tmp"
 
     try:
         with open(
-            temp_file,
+            temporary_file,
             "w",
             encoding="utf-8"
         ) as file:
@@ -210,7 +206,7 @@ def save_items(items):
                 indent=2
             )
 
-        temp_file.replace(ITEMS_FILE)
+        temporary_file.replace(ITEMS_FILE)
 
     except Exception as error:
         st.error(
@@ -225,7 +221,6 @@ def save_items(items):
 def image_to_base64(image):
     try:
         image = image.convert("RGB")
-
         image.thumbnail((1200, 1200))
 
         buffer = BytesIO()
@@ -250,10 +245,10 @@ def base64_to_image(data):
         return None
 
     try:
-        raw = base64.b64decode(data)
+        raw_data = base64.b64decode(data)
 
         image = Image.open(
-            BytesIO(raw)
+            BytesIO(raw_data)
         )
 
         return image.convert("RGB")
@@ -293,7 +288,7 @@ def show_image(image, caption=None):
 
     except Exception:
         st.info(
-            "📷 Bild konnte nicht angezeigt werden."
+            "📷 Dieses Bild konnte nicht angezeigt werden."
         )
 
 
@@ -323,7 +318,7 @@ def get_image_for_item(item):
 
 
 # =========================================================
-# KI
+# KI-MODELL
 # =========================================================
 
 def load_labels():
@@ -389,26 +384,23 @@ def classify_image(image):
 
     try:
         image = image.convert("RGB")
+        image = image.resize((224, 224))
 
-        image = image.resize(
-            (224, 224)
-        )
-
-        array = np.asarray(
+        image_array = np.asarray(
             image
         ).astype(np.float32)
 
-        array = (
-            array / 127.5
+        image_array = (
+            image_array / 127.5
         ) - 1.0
 
-        array = np.expand_dims(
-            array,
+        image_array = np.expand_dims(
+            image_array,
             axis=0
         )
 
         prediction = model.predict(
-            array,
+            image_array,
             verbose=0
         )
 
@@ -553,9 +545,7 @@ def format_date(value):
         return "Unbekannt"
 
     try:
-        date = datetime.fromisoformat(
-            value
-        )
+        date = datetime.fromisoformat(value)
 
         return date.strftime(
             "%d.%m.%Y, %H:%M Uhr"
@@ -565,16 +555,13 @@ def format_date(value):
         return str(value)
 
 
-def item_matches_search(
-    item,
-    search
-):
+def item_matches_search(item, search):
     search = search.lower().strip()
 
     if not search:
         return True
 
-    fields = [
+    values = [
         item.get("category", ""),
         item.get("ai_label", ""),
         item.get("location", ""),
@@ -584,8 +571,8 @@ def item_matches_search(
     ]
 
     combined = " ".join(
-        str(field)
-        for field in fields
+        str(value)
+        for value in values
     ).lower()
 
     return search in combined
@@ -615,13 +602,12 @@ items = load_items()
 
 
 # =========================================================
-# HEADER
+# HERO / TITEL
 # =========================================================
 
 st.markdown(
     """
     <div class="hero-box">
-
         <div class="hero-title">
             🔎 Digitales Fundbüro
         </div>
@@ -630,7 +616,6 @@ st.markdown(
             Fundstücke digital erfassen, automatisch erkennen
             und schnell wiederfinden.
         </div>
-
     </div>
     """,
     unsafe_allow_html=True
@@ -687,7 +672,7 @@ if st.session_state.page == "Übersicht":
 
     st.subheader("📊 Übersicht")
 
-    total = len(items)
+    total_items = len(items)
 
     categories = set()
 
@@ -706,7 +691,7 @@ if st.session_state.page == "Übersicht":
             f"""
             <div class="stat-card">
                 <div class="stat-number">
-                    {total}
+                    {total_items}
                 </div>
                 <div class="stat-label">
                     Gespeicherte Fundstücke
@@ -811,6 +796,7 @@ if st.session_state.page == "Übersicht":
             )
 
             with left:
+
                 image = get_image_for_item(
                     item
                 )
@@ -1105,6 +1091,10 @@ elif st.session_state.page == "Neuer Fund":
                     st.session_state.ai_confidence = 0.0
 
                     st.session_state.page = "Details"
+
+                    st.success(
+                        "🎉 Fundstück gespeichert!"
+                    )
 
                     st.balloons()
 
