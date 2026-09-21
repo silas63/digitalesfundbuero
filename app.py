@@ -1,4 +1,4 @@
-```python
+
 import streamlit as st
 import tensorflow as tf
 import numpy as np
@@ -1429,4 +1429,3 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-```
