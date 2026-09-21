@@ -1,16 +1,16 @@
-
-import streamlit as st
-import tensorflow as tf
-import numpy as np
-from PIL import Image
-from pathlib import Path
-from datetime import datetime
 import json
 import uuid
+from datetime import datetime
+from pathlib import Path
+
+import numpy as np
+import streamlit as st
+import tensorflow as tf
+from PIL import Image
 
 
 # ============================================================
-# SEITENEINSTELLUNGEN
+# KONFIGURATION
 # ============================================================
 
 st.set_page_config(
@@ -20,17 +20,12 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-
-# ============================================================
-# DATEIEN
-# ============================================================
-
 MODEL_PATH = Path("keras_model.h5")
 LABELS_PATH = Path("labels.txt")
 
 DATA_DIR = Path("fundburo_data")
-ITEMS_FILE = DATA_DIR / "fundstuecke.json"
 IMAGES_DIR = DATA_DIR / "bilder"
+ITEMS_FILE = DATA_DIR / "fundstuecke.json"
 
 DATA_DIR.mkdir(exist_ok=True)
 IMAGES_DIR.mkdir(exist_ok=True)
@@ -43,279 +38,93 @@ IMAGES_DIR.mkdir(exist_ok=True)
 st.markdown(
     """
     <style>
-
-    /* -------------------------------------------------------
-       GRUNDLAYOUT
-    ------------------------------------------------------- */
-
     .stApp {
-        background: #f5f7fb;
+        background: #f7f8fc;
     }
 
     .block-container {
-        max-width: 1180px;
-        padding-top: 1.5rem;
-        padding-bottom: 3rem;
+        max-width: 1200px;
+        padding-top: 2rem;
+        padding-bottom: 4rem;
     }
 
-    /* -------------------------------------------------------
-       STREAMLIT ELEMENTE
-    ------------------------------------------------------- */
-
-    div[data-testid="stVerticalBlock"] {
-        gap: 0.7rem;
-    }
-
-    div.stButton > button {
-        border-radius: 12px;
-        min-height: 44px;
-        font-weight: 600;
-        border: 1px solid #dbe3ec;
-        background: white;
-        color: #263238;
-    }
-
-    div.stButton > button:hover {
-        border-color: #1976d2;
-        color: #1976d2;
-        background: #f4f9ff;
-    }
-
-    /* -------------------------------------------------------
-       HEADER
-    ------------------------------------------------------- */
-
-    .header-box {
-        background: linear-gradient(
-            135deg,
-            #1976d2,
-            #125bb0
-        );
-        border-radius: 22px;
-        padding: 28px 32px;
-        margin-bottom: 22px;
-        box-shadow:
-            0 10px 30px rgba(25, 118, 210, 0.18);
-    }
-
-    .header-title {
+    .hero {
+        background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        padding: 2rem;
+        border-radius: 24px;
         color: white;
-        font-size: 32px;
-        font-weight: 800;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 10px 30px rgba(79,70,229,0.18);
+    }
+
+    .hero h1 {
         margin: 0;
-        letter-spacing: -0.7px;
+        font-size: 2.3rem;
     }
 
-    .header-subtitle {
-        color: rgba(255,255,255,0.88);
-        font-size: 15px;
-        margin-top: 6px;
+    .hero p {
+        margin: 0.5rem 0 0 0;
+        opacity: 0.9;
+        font-size: 1.05rem;
     }
-
-    /* -------------------------------------------------------
-       NAVIGATION
-    ------------------------------------------------------- */
-
-    .nav-space {
-        height: 4px;
-    }
-
-    /* -------------------------------------------------------
-       HERO
-    ------------------------------------------------------- */
-
-    .hero-box {
-        background: white;
-        border-radius: 20px;
-        border: 1px solid #e2e8f0;
-        padding: 28px;
-        margin: 20px 0;
-        box-shadow:
-            0 5px 20px rgba(15, 23, 42, 0.05);
-    }
-
-    .hero-title {
-        color: #17202a;
-        font-size: 26px;
-        font-weight: 800;
-        margin-bottom: 8px;
-    }
-
-    .hero-text {
-        color: #64748b;
-        font-size: 15px;
-        line-height: 1.6;
-    }
-
-    /* -------------------------------------------------------
-       STATISTIK
-    ------------------------------------------------------- */
 
     .stat-card {
         background: white;
-        border: 1px solid #e2e8f0;
-        border-radius: 17px;
-        padding: 20px;
-        box-shadow:
-            0 4px 16px rgba(15, 23, 42, 0.04);
+        border-radius: 18px;
+        padding: 1.2rem;
+        border: 1px solid #e8eaf0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+        min-height: 120px;
     }
 
     .stat-number {
-        font-size: 28px;
+        font-size: 2rem;
         font-weight: 800;
-        color: #1976d2;
+        color: #4f46e5;
     }
 
     .stat-label {
-        color: #64748b;
-        font-size: 13px;
-        margin-top: 3px;
+        color: #6b7280;
+        margin-top: 0.2rem;
     }
-
-    /* -------------------------------------------------------
-       FUNDSTÜCK-KARTEN
-    ------------------------------------------------------- */
 
     .item-card {
         background: white;
-        border: 1px solid #e2e8f0;
+        border: 1px solid #e8eaf0;
         border-radius: 18px;
-        padding: 18px;
-        margin-bottom: 16px;
-        box-shadow:
-            0 4px 16px rgba(15, 23, 42, 0.045);
+        padding: 1rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.04);
     }
 
-    .item-name {
-        font-size: 20px;
-        font-weight: 750;
-        color: #17202a;
-        margin-bottom: 7px;
-    }
-
-    .item-category {
+    .badge {
         display: inline-block;
-        background: #eaf4ff;
-        color: #1264b5;
+        padding: 0.3rem 0.7rem;
         border-radius: 999px;
-        padding: 5px 11px;
-        font-size: 12px;
+        background: #eef2ff;
+        color: #4338ca;
+        font-size: 0.8rem;
         font-weight: 700;
-        margin-bottom: 9px;
     }
 
-    .item-info {
-        color: #64748b;
-        font-size: 14px;
-        line-height: 1.8;
-    }
-
-    /* -------------------------------------------------------
-       KI
-    ------------------------------------------------------- */
-
-    .ai-box {
-        background: linear-gradient(
-            135deg,
-            #eff8ff,
-            #f8fbff
-        );
-        border: 1px solid #b9ddff;
-        border-radius: 18px;
-        padding: 22px;
-        margin: 18px 0;
-    }
-
-    .ai-title {
-        color: #1264b5;
-        font-size: 20px;
-        font-weight: 750;
-        margin-bottom: 8px;
-    }
-
-    .ai-detection {
-        color: #17202a;
-        font-size: 24px;
-        font-weight: 800;
-    }
-
-    .ai-confidence {
-        color: #64748b;
-        font-size: 14px;
-        margin-top: 5px;
-    }
-
-    /* -------------------------------------------------------
-       LEERER ZUSTAND
-    ------------------------------------------------------- */
-
-    .empty-box {
+    .info-box {
         background: white;
-        border: 1px dashed #cbd5e1;
-        border-radius: 20px;
-        padding: 55px 25px;
-        text-align: center;
-        margin-top: 20px;
-    }
-
-    .empty-icon {
-        font-size: 45px;
-        margin-bottom: 10px;
-    }
-
-    .empty-title {
-        color: #334155;
-        font-size: 21px;
-        font-weight: 750;
-    }
-
-    .empty-text {
-        color: #94a3b8;
-        margin-top: 5px;
-    }
-
-    /* -------------------------------------------------------
-       DETAILS
-    ------------------------------------------------------- */
-
-    .detail-card {
-        background: white;
-        border: 1px solid #e2e8f0;
+        border: 1px solid #e8eaf0;
         border-radius: 18px;
-        padding: 24px;
-        box-shadow:
-            0 4px 16px rgba(15, 23, 42, 0.045);
+        padding: 1.2rem;
+        margin: 1rem 0;
     }
 
-    .detail-label {
-        color: #94a3b8;
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.4px;
-        font-weight: 700;
-        margin-bottom: 3px;
-    }
-
-    .detail-value {
-        color: #263238;
-        font-size: 16px;
+    div[data-testid="stButton"] > button {
+        border-radius: 12px;
         font-weight: 600;
-        margin-bottom: 17px;
     }
 
-    /* -------------------------------------------------------
-       FOOTER
-    ------------------------------------------------------- */
-
-    .footer {
-        text-align: center;
-        color: #94a3b8;
-        font-size: 12px;
-        margin-top: 45px;
-        padding-top: 20px;
-        border-top: 1px solid #e2e8f0;
+    div[data-testid="stFileUploader"] {
+        background: white;
+        border-radius: 16px;
+        padding: 0.5rem;
     }
-
     </style>
     """,
     unsafe_allow_html=True,
@@ -323,102 +132,94 @@ st.markdown(
 
 
 # ============================================================
-# DATEN LADEN
+# DATEN
 # ============================================================
 
 def load_items():
+    """Lädt alle Fundstücke sicher."""
     if not ITEMS_FILE.exists():
         return []
 
     try:
-        with open(
-            ITEMS_FILE,
-            "r",
-            encoding="utf-8"
-        ) as file:
+        with open(ITEMS_FILE, "r", encoding="utf-8") as file:
             data = json.load(file)
 
         if isinstance(data, list):
             return data
 
+        return []
+
     except Exception:
         return []
 
-    return []
-
 
 def save_items(items):
-    DATA_DIR.mkdir(exist_ok=True)
-
-    with open(
-        ITEMS_FILE,
-        "w",
-        encoding="utf-8"
-    ) as file:
-        json.dump(
-            items,
-            file,
-            ensure_ascii=False,
-            indent=2
-        )
+    """Speichert alle Fundstücke."""
+    try:
+        with open(ITEMS_FILE, "w", encoding="utf-8") as file:
+            json.dump(items, file, ensure_ascii=False, indent=2)
+        return True
+    except Exception as error:
+        st.error(f"Die Daten konnten nicht gespeichert werden: {error}")
+        return False
 
 
 def save_image(image):
-    filename = f"{uuid.uuid4()}.jpg"
-    path = IMAGES_DIR / filename
+    """Speichert ein Bild sicher und gibt den Pfad zurück."""
+    try:
+        filename = f"{uuid.uuid4().hex}.jpg"
+        path = IMAGES_DIR / filename
 
-    image.convert("RGB").save(
-        path,
-        "JPEG",
-        quality=90
-    )
+        image = image.convert("RGB")
+        image.save(path, "JPEG", quality=90)
 
-    return str(path)
+        return str(path)
+
+    except Exception:
+        return None
 
 
-# ============================================================
-# LABELS LADEN
-# ============================================================
-
-def load_labels():
-
-    labels = {}
-
-    if not LABELS_PATH.exists():
-        return labels
+def delete_image(image_path):
+    """Löscht ein Bild, falls es existiert."""
+    if not image_path:
+        return
 
     try:
-        with open(
-            LABELS_PATH,
-            "r",
-            encoding="utf-8"
-        ) as file:
-
-            for line in file:
-
-                line = line.strip()
-
-                if not line:
-                    continue
-
-                parts = line.split(
-                    " ",
-                    1
-                )
-
-                if len(parts) == 2:
-
-                    try:
-                        index = int(parts[0])
-                        labels[index] = parts[1].strip()
-
-                    except ValueError:
-                        pass
-
+        path = Path(image_path)
+        if path.exists() and path.is_file():
+            path.unlink()
     except Exception:
         pass
 
-    return labels
+
+# ============================================================
+# LABELS
+# ============================================================
+
+def load_labels():
+    """Lädt die Teachable-Machine-Labels."""
+    if not LABELS_PATH.exists():
+        return []
+
+    try:
+        with open(LABELS_PATH, "r", encoding="utf-8") as file:
+            labels = [line.strip() for line in file.readlines() if line.strip()]
+
+        cleaned = []
+
+        for label in labels:
+            # Teachable Machine kann Labels z.B. als "0 T-Shirt" speichern.
+            parts = label.split(" ", 1)
+
+            if len(parts) == 2 and parts[0].isdigit():
+                label = parts[1]
+
+            cleaned.append(label)
+
+        return cleaned
+
+    except Exception:
+        return []
 
 
 # ============================================================
@@ -427,96 +228,178 @@ def load_labels():
 
 @st.cache_resource
 def load_model():
-
+    """Lädt das Keras-Modell."""
     if not MODEL_PATH.exists():
+        return None
 
-        st.error(
-            "Das Modell keras_model.h5 wurde nicht gefunden."
+    try:
+        return tf.keras.models.load_model(
+            MODEL_PATH,
+            compile=False,
         )
-
-        st.stop()
-
-    return tf.keras.models.load_model(
-        MODEL_PATH,
-        compile=False
-    )
+    except Exception:
+        return None
 
 
 def classify_image(image):
+    """Klassifiziert ein Bild mit dem Teachable-Machine-Modell."""
 
     model = load_model()
-    labels = load_labels()
 
-    input_shape = model.input_shape
+    if model is None:
+        return None, 0.0
 
-    height = input_shape[1]
-    width = input_shape[2]
+    try:
+        input_shape = model.input_shape
 
-    image = image.convert("RGB")
-    image = image.resize(
-        (width, height)
-    )
+        if isinstance(input_shape, list):
+            input_shape = input_shape[0]
 
-    image_array = np.asarray(
-        image
-    ).astype(np.float32)
+        height = input_shape[1]
+        width = input_shape[2]
 
-    image_array = (
-        image_array / 127.5
-    ) - 1
+        image = image.convert("RGB")
+        resized = image.resize((width, height))
 
-    image_array = np.expand_dims(
-        image_array,
-        axis=0
-    )
+        array = np.asarray(resized).astype(np.float32)
 
-    prediction = model.predict(
-        image_array,
-        verbose=0
-    )
+        # Typische Teachable-Machine-Normalisierung
+        array = (array / 127.5) - 1.0
 
-    index = int(
-        np.argmax(prediction)
-    )
+        array = np.expand_dims(array, axis=0)
 
-    confidence = float(
-        prediction[0][index]
-    )
+        prediction = model.predict(array, verbose=0)
 
-    label = labels.get(
-        index,
-        f"Unbekannt ({index})"
-    )
+        if isinstance(prediction, list):
+            prediction = prediction[0]
 
-    return label, confidence
+        prediction = np.asarray(prediction).flatten()
 
+        if len(prediction) == 0:
+            return None, 0.0
+
+        index = int(np.argmax(prediction))
+        confidence = float(prediction[index])
+
+        labels = load_labels()
+
+        if index < len(labels):
+            label = labels[index]
+        else:
+            label = f"Klasse {index + 1}"
+
+        return label, confidence
+
+    except Exception:
+        return None, 0.0
+
+
+# ============================================================
+# KATEGORIEN
+# ============================================================
 
 def get_category(label):
+    """Ordnet KI-Labels einer Kategorie zu."""
+
+    if not label:
+        return "Sonstiges"
 
     text = label.lower()
 
-    if (
-        "pullover" in text
-        or "shirt" in text
-        or "t-shirt" in text
-        or "tshirt" in text
-        or "jacke" in text
-    ):
+    if any(word in text for word in [
+        "shirt",
+        "t-shirt",
+        "tshirt",
+        "pullover",
+        "hoodie",
+        "jacke",
+        "jacke",
+        "mantel",
+        "hemd",
+        "bluse",
+        "oberteil",
+        "sweater",
+        "sweatshirt",
+    ]):
         return "Oberteile"
 
-    if (
-        "hose" in text
-        or "jeans" in text
-    ):
+    if any(word in text for word in [
+        "hose",
+        "jeans",
+        "shorts",
+        "rock",
+        "leggings",
+        "trouser",
+    ]):
         return "Hosen"
 
-    if (
-        "schuh" in text
-        or "sneaker" in text
-    ):
+    if any(word in text for word in [
+        "schuh",
+        "schuhe",
+        "sneaker",
+        "stiefel",
+        "sandale",
+        "stieflette",
+    ]):
         return "Schuhe"
 
     return "Sonstiges"
+
+
+# ============================================================
+# HILFSFUNKTIONEN
+# ============================================================
+
+def format_date(value):
+    if not value:
+        return "—"
+
+    try:
+        date = datetime.fromisoformat(value)
+        return date.strftime("%d.%m.%Y")
+    except Exception:
+        return value
+
+
+def safe_image(path):
+    """
+    Gibt einen existierenden Bildpfad zurück.
+    Verhindert Fehler bei fehlenden Bildern.
+    """
+    if not path:
+        return None
+
+    try:
+        path = Path(path)
+
+        if path.exists() and path.is_file():
+            return str(path)
+
+    except Exception:
+        pass
+
+    return None
+
+
+def item_matches_search(item, search):
+    if not search:
+        return True
+
+    search = search.lower()
+
+    fields = [
+        item.get("category", ""),
+        item.get("ai_label", ""),
+        item.get("location", ""),
+        item.get("size", ""),
+        item.get("color", ""),
+        item.get("description", ""),
+        item.get("date", ""),
+    ]
+
+    text = " ".join(str(field) for field in fields).lower()
+
+    return search in text
 
 
 # ============================================================
@@ -533,10 +416,17 @@ if "category" not in st.session_state:
     st.session_state.category = "Alle"
 
 if "ai_label" not in st.session_state:
-    st.session_state.ai_label = None
+    st.session_state.ai_label = ""
 
 if "ai_confidence" not in st.session_state:
-    st.session_state.ai_confidence = None
+    st.session_state.ai_confidence = 0.0
+
+
+# ============================================================
+# DATEN LADEN
+# ============================================================
+
+items = load_items()
 
 
 # ============================================================
@@ -545,13 +435,9 @@ if "ai_confidence" not in st.session_state:
 
 st.markdown(
     """
-    <div class="header-box">
-        <div class="header-title">
-            🔎 Digitales Fundbüro
-        </div>
-        <div class="header-subtitle">
-            Fundstücke einfach erfassen, erkennen und wiederfinden
-        </div>
+    <div class="hero">
+        <h1>🔎 Digitales Fundbüro</h1>
+        <p>Fundstücke einfach erfassen, mit KI erkennen und schnell wiederfinden.</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -565,37 +451,25 @@ st.markdown(
 nav1, nav2, nav3 = st.columns(3)
 
 with nav1:
-
-    if st.button(
-        "🏠  Übersicht",
-        use_container_width=True
-    ):
+    if st.button("🏠 Übersicht", use_container_width=True):
         st.session_state.page = "Übersicht"
+        st.session_state.selected_id = None
         st.rerun()
-
 
 with nav2:
-
-    if st.button(
-        "🔎  Suchen",
-        use_container_width=True
-    ):
-        st.session_state.page = "Suchen"
+    if st.button("➕ Neuer Fund", use_container_width=True):
+        st.session_state.page = "Neuer Fund"
+        st.session_state.selected_id = None
         st.rerun()
-
 
 with nav3:
-
-    if st.button(
-        "➕  Neuer Fund",
-        use_container_width=True
-    ):
-        st.session_state.page = "Neuer Fund"
-
-        st.session_state.ai_label = None
-        st.session_state.ai_confidence = None
-
+    if st.button("🔍 Suchen", use_container_width=True):
+        st.session_state.page = "Suchen"
+        st.session_state.selected_id = None
         st.rerun()
+
+
+st.divider()
 
 
 # ============================================================
@@ -604,82 +478,66 @@ with nav3:
 
 if st.session_state.page == "Übersicht":
 
-    items = load_items()
+    st.subheader("📊 Übersicht")
 
-    st.markdown(
-        """
-        <div class="hero-box">
-            <div class="hero-title">
-                👋 Willkommen im Fundbüro
-            </div>
-            <div class="hero-text">
-                Du hast etwas gefunden?
-                Fotografiere es und lass die KI automatisch
-                erkennen, um welchen Gegenstand es sich handelt.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    total = len(items)
 
-    # --------------------------------------------------------
-    # STATISTIK
-    # --------------------------------------------------------
+    clothes = len([
+        item for item in items
+        if item.get("category") in ["Oberteile", "Hosen"]
+    ])
 
-    stat1, stat2, stat3 = st.columns(3)
+    shoes = len([
+        item for item in items
+        if item.get("category") == "Schuhe"
+    ])
 
-    with stat1:
+    other = len([
+        item for item in items
+        if item.get("category") == "Sonstiges"
+    ])
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    with c1:
         st.markdown(
             f"""
             <div class="stat-card">
-                <div class="stat-number">
-                    {len(items)}
-                </div>
-                <div class="stat-label">
-                    Gespeicherte Fundstücke
-                </div>
+                <div class="stat-number">{total}</div>
+                <div class="stat-label">Fundstücke</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-    with stat2:
-
-        categories_count = len(
-            set(
-                item.get(
-                    "category",
-                    "Sonstiges"
-                )
-                for item in items
-            )
-        )
-
+    with c2:
         st.markdown(
             f"""
             <div class="stat-card">
-                <div class="stat-number">
-                    {categories_count}
-                </div>
-                <div class="stat-label">
-                    Kategorien
-                </div>
+                <div class="stat-number">{clothes}</div>
+                <div class="stat-label">Kleidung</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-    with stat3:
-
+    with c3:
         st.markdown(
-            """
+            f"""
             <div class="stat-card">
-                <div class="stat-number">
-                    🤖
-                </div>
-                <div class="stat-label">
-                    KI-Erkennung aktiv
-                </div>
+                <div class="stat-number">{shoes}</div>
+                <div class="stat-label">Schuhe</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    with c4:
+        st.markdown(
+            f"""
+            <div class="stat-card">
+                <div class="stat-number">{other}</div>
+                <div class="stat-label">Sonstiges</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -687,164 +545,88 @@ if st.session_state.page == "Übersicht":
 
     st.write("")
 
-    if st.button(
-        "➕  Neues Fundstück hinzufügen",
-        use_container_width=True
-    ):
-        st.session_state.page = "Neuer Fund"
-        st.session_state.ai_label = None
-        st.session_state.ai_confidence = None
-        st.rerun()
+    st.subheader("📦 Fundstücke")
 
-    st.write("")
+    categories = ["Alle", "Oberteile", "Hosen", "Schuhe", "Sonstiges"]
 
-    # --------------------------------------------------------
-    # FUNDSTÜCKE
-    # --------------------------------------------------------
+    cols = st.columns(len(categories))
 
-    st.subheader("Aktuelle Fundstücke")
-
-    categories = [
-        "Alle",
-        "Oberteile",
-        "Hosen",
-        "Schuhe",
-        "Sonstiges",
-    ]
-
-    category_columns = st.columns(
-        len(categories)
-    )
-
-    for index, category in enumerate(
-        categories
-    ):
-
-        with category_columns[index]:
-
+    for index, category in enumerate(categories):
+        with cols[index]:
             if st.button(
                 category,
-                key=f"category_{index}",
-                use_container_width=True
+                key=f"category_{category}",
+                use_container_width=True,
             ):
-
                 st.session_state.category = category
                 st.rerun()
 
-    filtered_items = items.copy()
+    selected_category = st.session_state.category
 
-    if st.session_state.category != "Alle":
-
+    if selected_category == "Alle":
+        filtered_items = items
+    else:
         filtered_items = [
-            item
-            for item in filtered_items
-            if item.get("category")
-            == st.session_state.category
+            item for item in items
+            if item.get("category") == selected_category
         ]
 
     if not filtered_items:
-
-        st.markdown(
-            """
-            <div class="empty-box">
-                <div class="empty-icon">
-                    📦
-                </div>
-                <div class="empty-title">
-                    Noch keine Fundstücke
-                </div>
-                <div class="empty-text">
-                    Hier erscheinen deine gespeicherten Fundstücke.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        st.info("Noch keine passenden Fundstücke vorhanden.")
 
     else:
+        for item in reversed(filtered_items):
 
-        for index, item in enumerate(
-            filtered_items
-        ):
+            image_path = safe_image(item.get("image_path"))
 
-            image_column, info_column, action_column = st.columns(
-                [1.1, 3.2, 1]
+            col_image, col_info, col_button = st.columns(
+                [1, 2, 0.7]
             )
 
-            with image_column:
-
-                image_path = item.get(
-                    "image"
-                )
-
-                if (
-                    image_path
-                    and Path(image_path).exists()
-                ):
-
-                    st.image(
-                        image_path,
-                        use_container_width=True
-                    )
-
+            with col_image:
+                if image_path:
+                    try:
+                        st.image(
+                            image_path,
+                            use_container_width=True,
+                        )
+                    except Exception:
+                        st.info("📷 Bild nicht verfügbar.")
                 else:
+                    st.info("📷 Kein Bild")
 
-                    st.markdown(
-                        """
-                        <div style="
-                            background:#f1f5f9;
-                            border-radius:15px;
-                            padding:35px 10px;
-                            text-align:center;
-                            font-size:40px;
-                        ">
-                            📦
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-
-            with info_column:
+            with col_info:
 
                 st.markdown(
-                    f"""
-                    <div class="item-card">
-
-                        <div class="item-category">
-                            {item.get("category", "Sonstiges")}
-                        </div>
-
-                        <div class="item-name">
-                            {item.get("name", "Unbekannter Gegenstand")}
-                        </div>
-
-                        <div class="item-info">
-                            📍 {item.get("location", "Kein Fundort")}<br>
-                            📅 {item.get("date", "Kein Datum")}
-                        </div>
-
-                    </div>
-                    """,
+                    f'<span class="badge">{item.get("category", "Sonstiges")}</span>',
                     unsafe_allow_html=True,
                 )
 
-            with action_column:
+                st.markdown(
+                    f"### {item.get('ai_label', 'Unbekannt')}"
+                )
 
+                st.write(
+                    f"📍 **Ort:** {item.get('location', '—')}"
+                )
+
+                st.write(
+                    f"📅 **Gefunden:** {format_date(item.get('date'))}"
+                )
+
+            with col_button:
                 st.write("")
 
                 if st.button(
                     "Details",
-                    key=f"details_{index}_{item.get('id', '')}",
-                    use_container_width=True
+                    key=f"details_{item.get('id')}",
+                    use_container_width=True,
                 ):
-
-                    st.session_state.selected_id = item.get(
-                        "id"
-                    )
-
+                    st.session_state.selected_id = item.get("id")
                     st.session_state.page = "Details"
-
                     st.rerun()
+
+            st.divider()
 
 
 # ============================================================
@@ -853,350 +635,267 @@ if st.session_state.page == "Übersicht":
 
 elif st.session_state.page == "Neuer Fund":
 
-    st.subheader("➕ Neuen Fund erfassen")
+    st.subheader("➕ Neues Fundstück")
 
     st.write(
-        "Lade ein Foto hoch oder benutze direkt die Kamera."
+        "Lade ein Foto hoch oder nutze die Kamera. "
+        "Die KI versucht anschließend, den Gegenstand zu erkennen."
     )
 
-    upload_column, camera_column = st.columns(2)
+    uploaded_file = st.file_uploader(
+        "📷 Foto auswählen",
+        type=["jpg", "jpeg", "png", "webp"],
+    )
 
-    with upload_column:
+    camera_file = st.camera_input(
+        "Oder direkt mit der Kamera aufnehmen"
+    )
 
-        uploaded_file = st.file_uploader(
-            "📁 Bild auswählen",
-            type=[
-                "jpg",
-                "jpeg",
-                "png",
-            ],
-        )
-
-    with camera_column:
-
-        camera_file = st.camera_input(
-            "📷 Kamera verwenden"
-        )
+    image_source = camera_file if camera_file is not None else uploaded_file
 
     image = None
 
-    if camera_file is not None:
+    if image_source is not None:
 
-        image = Image.open(
-            camera_file
-        )
-
-    elif uploaded_file is not None:
-
-        image = Image.open(
-            uploaded_file
-        )
-
-    if image is not None:
-
-        st.write("")
-
-        preview_column, info_column = st.columns(
-            [1.2, 1]
-        )
-
-        with preview_column:
+        try:
+            image = Image.open(image_source).convert("RGB")
 
             st.image(
                 image,
-                caption="Vorschau",
-                use_container_width=True
+                caption="Ausgewähltes Bild",
+                use_container_width=True,
             )
 
-        with info_column:
+        except Exception:
+            st.error("Das Bild konnte nicht geöffnet werden.")
 
-            st.info(
-                "Die KI versucht automatisch zu erkennen, "
-                "welcher Gegenstand auf dem Bild zu sehen ist."
-            )
-
-            if st.button(
-                "🤖  Gegenstand erkennen",
-                use_container_width=True
-            ):
-
-                with st.spinner(
-                    "KI analysiert das Bild ..."
-                ):
-
-                    try:
-
-                        label, confidence = classify_image(
-                            image
-                        )
-
-                        st.session_state.ai_label = label
-                        st.session_state.ai_confidence = confidence
-
-                        st.rerun()
-
-                    except Exception as error:
-
-                        st.error(
-                            "Die KI konnte das Bild nicht analysieren."
-                        )
-
-                        st.exception(error)
-
-    # --------------------------------------------------------
-    # KI ERGEBNIS
-    # --------------------------------------------------------
-
-    if st.session_state.ai_label:
-
-        category = get_category(
-            st.session_state.ai_label
-        )
-
-        confidence = (
-            st.session_state.ai_confidence
-            * 100
-        )
-
-        st.markdown(
-            f"""
-            <div class="ai-box">
-
-                <div class="ai-title">
-                    🤖 KI-Erkennung
-                </div>
-
-                <div class="ai-detection">
-                    {st.session_state.ai_label}
-                </div>
-
-                <div class="ai-confidence">
-                    Kategorie: {category}
-                    · Erkennungsgenauigkeit: {confidence:.1f} %
-                </div>
-
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        st.subheader("Weitere Angaben")
-
-        location = st.text_input(
-            "📍 Fundort",
-            placeholder="z. B. Sporthalle, Schulhof ..."
-        )
-
-        size = st.text_input(
-            "📏 Größe",
-            placeholder="z. B. M, 42 ..."
-        )
-
-        color = st.text_input(
-            "🎨 Farbe",
-            placeholder="z. B. Schwarz ..."
-        )
-
-        description = st.text_area(
-            "📝 Beschreibung",
-            placeholder="Weitere Merkmale oder Hinweise ..."
-        )
+    if image is not None:
 
         if st.button(
-            "💾  Fundstück speichern",
-            use_container_width=True
+            "🤖 Gegenstand mit KI erkennen",
+            use_container_width=True,
         ):
 
-            if not location.strip():
+            with st.spinner("KI analysiert das Bild ..."):
 
-                st.warning(
-                    "Bitte gib noch den Fundort ein."
+                label, confidence = classify_image(image)
+
+            st.session_state.ai_label = label or ""
+            st.session_state.ai_confidence = confidence
+
+            if label:
+                st.success(
+                    f"Erkannt: **{label}** "
+                    f"({confidence * 100:.1f} %)"
                 )
-
             else:
-
-                image_path = save_image(
-                    image
+                st.warning(
+                    "Der Gegenstand konnte nicht erkannt werden."
                 )
 
-                items = load_items()
+    st.divider()
 
-                new_item = {
-                    "id": str(uuid.uuid4()),
-                    "name": st.session_state.ai_label,
-                    "category": category,
-                    "location": location.strip(),
-                    "size": size.strip(),
-                    "color": color.strip(),
-                    "description": description.strip(),
-                    "date": datetime.now().strftime(
-                        "%d.%m.%Y"
-                    ),
-                    "image": image_path,
-                }
+    st.subheader("📝 Angaben zum Fundstück")
 
-                items.append(
-                    new_item
-                )
+    ai_label = st.session_state.ai_label
 
-                save_items(
-                    items
-                )
+    default_category = get_category(ai_label)
 
-                st.session_state.ai_label = None
-                st.session_state.ai_confidence = None
-                st.session_state.page = "Übersicht"
+    category_options = [
+        "Oberteile",
+        "Hosen",
+        "Schuhe",
+        "Sonstiges",
+    ]
+
+    if default_category not in category_options:
+        default_category = "Sonstiges"
+
+    category = st.selectbox(
+        "Kategorie",
+        category_options,
+        index=category_options.index(default_category),
+    )
+
+    label_input = st.text_input(
+        "Bezeichnung",
+        value=ai_label,
+        placeholder="z. B. schwarzer Hoodie",
+    )
+
+    location = st.text_input(
+        "📍 Fundort",
+        placeholder="z. B. Sporthalle",
+    )
+
+    size = st.text_input(
+        "📏 Größe",
+        placeholder="z. B. M, 38, 42",
+    )
+
+    color = st.text_input(
+        "🎨 Farbe",
+        placeholder="z. B. Schwarz",
+    )
+
+    description = st.text_area(
+        "📝 Beschreibung",
+        placeholder="Weitere Merkmale oder Hinweise ...",
+        height=120,
+    )
+
+    if st.button(
+        "💾 Fundstück speichern",
+        type="primary",
+        use_container_width=True,
+    ):
+
+        if not label_input.strip():
+            st.warning(
+                "Bitte gib mindestens eine Bezeichnung ein."
+            )
+
+        elif not location.strip():
+            st.warning(
+                "Bitte gib den Fundort ein."
+            )
+
+        else:
+
+            image_path = None
+
+            if image is not None:
+                image_path = save_image(image)
+
+            new_item = {
+                "id": str(uuid.uuid4()),
+                "category": category,
+                "ai_label": label_input.strip(),
+                "ai_confidence": st.session_state.ai_confidence,
+                "location": location.strip(),
+                "size": size.strip(),
+                "color": color.strip(),
+                "description": description.strip(),
+                "image_path": image_path,
+                "date": datetime.now().isoformat(),
+            }
+
+            items.append(new_item)
+
+            if save_items(items):
 
                 st.success(
-                    "Fundstück wurde erfolgreich gespeichert."
+                    "✅ Das Fundstück wurde erfolgreich gespeichert!"
                 )
+
+                st.session_state.ai_label = ""
+                st.session_state.ai_confidence = 0.0
+
+                st.session_state.page = "Übersicht"
 
                 st.rerun()
 
 
 # ============================================================
-# SUCHE
+# SUCHEN
 # ============================================================
 
 elif st.session_state.page == "Suchen":
 
-    st.subheader("🔎 Fundstücke suchen")
-
-    items = load_items()
+    st.subheader("🔍 Fundstücke suchen")
 
     search = st.text_input(
-        "Suche",
-        placeholder="z. B. Pullover, Schuhe, Sporthalle ..."
+        "Suchbegriff",
+        placeholder="z. B. Hoodie, Sporthalle, schwarz ...",
     )
 
-    if not items:
+    category_filter = st.selectbox(
+        "Kategorie",
+        ["Alle", "Oberteile", "Hosen", "Schuhe", "Sonstiges"],
+    )
 
-        st.markdown(
-            """
-            <div class="empty-box">
-                <div class="empty-icon">📦</div>
-                <div class="empty-title">
-                    Noch keine Fundstücke
-                </div>
-                <div class="empty-text">
-                    Es gibt noch nichts zu durchsuchen.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    filtered = []
 
-    elif search.strip():
+    for item in items:
 
-        search_text = search.lower().strip()
+        if not item_matches_search(item, search):
+            continue
 
-        results = []
+        if (
+            category_filter != "Alle"
+            and item.get("category") != category_filter
+        ):
+            continue
 
-        for item in items:
+        filtered.append(item)
 
-            searchable = " ".join(
-                [
-                    str(item.get("name", "")),
-                    str(item.get("category", "")),
-                    str(item.get("location", "")),
-                    str(item.get("color", "")),
-                    str(item.get("size", "")),
-                    str(item.get("description", "")),
-                ]
-            ).lower()
+    st.write(
+        f"**{len(filtered)} Fundstück(e) gefunden**"
+    )
 
-            if search_text in searchable:
-                results.append(item)
-
-        if not results:
-
-            st.info(
-                "Kein passendes Fundstück gefunden."
-            )
-
-        else:
-
-            st.write(
-                f"{len(results)} Fundstück"
-                + ("e" if len(results) != 1 else "")
-                + " gefunden"
-            )
-
-            for index, item in enumerate(
-                results
-            ):
-
-                with st.container():
-
-                    left, middle, right = st.columns(
-                        [1, 3, 1]
-                    )
-
-                    with left:
-
-                        image_path = item.get(
-                            "image"
-                        )
-
-                        if (
-                            image_path
-                            and Path(image_path).exists()
-                        ):
-
-                            st.image(
-                                image_path,
-                                use_container_width=True
-                            )
-
-                        else:
-
-                            st.write("📦")
-
-                    with middle:
-
-                        st.markdown(
-                            f"""
-                            <div class="item-card">
-
-                                <div class="item-category">
-                                    {item.get("category", "Sonstiges")}
-                                </div>
-
-                                <div class="item-name">
-                                    {item.get("name", "Unbekannt")}
-                                </div>
-
-                                <div class="item-info">
-                                    📍 {item.get("location", "-")}<br>
-                                    📅 {item.get("date", "-")}
-                                </div>
-
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-
-                    with right:
-
-                        if st.button(
-                            "Details",
-                            key=f"search_details_{index}",
-                            use_container_width=True
-                        ):
-
-                            st.session_state.selected_id = item.get(
-                                "id"
-                            )
-
-                            st.session_state.page = "Details"
-
-                            st.rerun()
+    if not filtered:
+        st.info("Keine passenden Fundstücke gefunden.")
 
     else:
 
-        st.info(
-            "Gib oben einen Suchbegriff ein."
-        )
+        for item in reversed(filtered):
+
+            image_path = safe_image(item.get("image_path"))
+
+            col1, col2, col3 = st.columns(
+                [1, 2, 0.7]
+            )
+
+            with col1:
+
+                if image_path:
+                    try:
+                        st.image(
+                            image_path,
+                            use_container_width=True,
+                        )
+                    except Exception:
+                        st.info("📷 Bild nicht verfügbar.")
+                else:
+                    st.info("📷 Kein Bild")
+
+            with col2:
+
+                st.markdown(
+                    f'<span class="badge">{item.get("category", "Sonstiges")}</span>',
+                    unsafe_allow_html=True,
+                )
+
+                st.markdown(
+                    f"### {item.get('ai_label', 'Unbekannt')}"
+                )
+
+                st.write(
+                    f"📍 {item.get('location', '—')}"
+                )
+
+                if item.get("color"):
+                    st.write(
+                        f"🎨 {item.get('color')}"
+                    )
+
+                if item.get("size"):
+                    st.write(
+                        f"📏 {item.get('size')}"
+                    )
+
+            with col3:
+
+                if st.button(
+                    "Ansehen",
+                    key=f"search_details_{item.get('id')}",
+                    use_container_width=True,
+                ):
+                    st.session_state.selected_id = item.get("id")
+                    st.session_state.page = "Details"
+                    st.rerun()
+
+            st.divider()
 
 
 # ============================================================
@@ -1205,216 +904,161 @@ elif st.session_state.page == "Suchen":
 
 elif st.session_state.page == "Details":
 
-    items = load_items()
-
     selected_item = None
 
     for item in items:
-
         if item.get("id") == st.session_state.selected_id:
-
             selected_item = item
             break
 
     if selected_item is None:
 
-        st.error(
-            "Das Fundstück wurde nicht gefunden."
-        )
+        st.warning("Das Fundstück wurde nicht gefunden.")
 
-        if st.button(
-            "← Zurück zur Übersicht"
-        ):
-
+        if st.button("← Zur Übersicht"):
             st.session_state.page = "Übersicht"
             st.rerun()
 
     else:
 
-        if st.button(
-            "← Zurück"
-        ):
-
+        if st.button("← Zurück"):
             st.session_state.page = "Übersicht"
+            st.session_state.selected_id = None
             st.rerun()
 
-        st.write("")
-
-        st.title(
-            selected_item.get(
-                "name",
-                "Fundstück"
-            )
+        st.subheader(
+            f"🔎 {selected_item.get('ai_label', 'Fundstück')}"
         )
 
-        image_column, detail_column = st.columns(
-            [1.15, 1]
+        image_path = safe_image(
+            selected_item.get("image_path")
         )
 
-        with image_column:
+        col1, col2 = st.columns([1, 1.3])
 
-            image_path = selected_item.get(
-                "image"
-            )
+        with col1:
 
-            if (
-                image_path
-                and Path(image_path).exists()
-            ):
+            if image_path:
 
-                st.image(
-                    image_path,
-                    use_container_width=True
-                )
+                try:
+                    st.image(
+                        image_path,
+                        use_container_width=True,
+                    )
+
+                except Exception:
+                    st.info(
+                        "📷 Das Bild konnte nicht angezeigt werden."
+                    )
 
             else:
-
-                st.markdown(
-                    """
-                    <div class="empty-box">
-                        📦
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
+                st.info(
+                    "📷 Für dieses Fundstück ist kein Bild vorhanden."
                 )
 
-        with detail_column:
+        with col2:
 
             st.markdown(
-                '<div class="detail-card">',
-                unsafe_allow_html=True
+                f'<span class="badge">{selected_item.get("category", "Sonstiges")}</span>',
+                unsafe_allow_html=True,
             )
 
-            st.markdown(
-                '<div class="detail-label">Kategorie</div>',
-                unsafe_allow_html=True
+            st.write("")
+
+            st.write(
+                f"**📍 Fundort:** "
+                f"{selected_item.get('location', '—')}"
             )
 
-            st.markdown(
-                f"""
-                <div class="detail-value">
-                    {selected_item.get("category", "-")}
-                </div>
-                """,
-                unsafe_allow_html=True
+            st.write(
+                f"**📅 Datum:** "
+                f"{format_date(selected_item.get('date'))}"
             )
 
-            st.markdown(
-                '<div class="detail-label">Fundort</div>',
-                unsafe_allow_html=True
+            st.write(
+                f"**📏 Größe:** "
+                f"{selected_item.get('size') or '—'}"
             )
 
-            st.markdown(
-                f"""
-                <div class="detail-value">
-                    {selected_item.get("location", "-")}
-                </div>
-                """,
-                unsafe_allow_html=True
+            st.write(
+                f"**🎨 Farbe:** "
+                f"{selected_item.get('color') or '—'}"
             )
 
-            st.markdown(
-                '<div class="detail-label">Datum</div>',
-                unsafe_allow_html=True
+            confidence = selected_item.get(
+                "ai_confidence",
+                0,
             )
 
-            st.markdown(
-                f"""
-                <div class="detail-value">
-                    {selected_item.get("date", "-")}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+            try:
+                confidence = float(confidence)
+            except Exception:
+                confidence = 0.0
 
-            st.markdown(
-                '<div class="detail-label">Größe</div>',
-                unsafe_allow_html=True
-            )
+            if confidence > 0:
+                st.write(
+                    f"🤖 **KI-Sicherheit:** "
+                    f"{confidence * 100:.1f} %"
+                )
 
-            st.markdown(
-                f"""
-                <div class="detail-value">
-                    {selected_item.get("size") or "-"}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+        st.divider()
 
-            st.markdown(
-                '<div class="detail-label">Farbe</div>',
-                unsafe_allow_html=True
-            )
+        st.subheader("📝 Beschreibung")
 
-            st.markdown(
-                f"""
-                <div class="detail-value">
-                    {selected_item.get("color") or "-"}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+        description = selected_item.get(
+            "description",
+            "",
+        )
 
-            st.markdown(
-                '<div class="detail-label">Beschreibung</div>',
-                unsafe_allow_html=True
-            )
+        if description:
+            st.write(description)
+        else:
+            st.write("Keine Beschreibung vorhanden.")
 
-            st.markdown(
-                f"""
-                <div class="detail-value">
-                    {selected_item.get("description") or "-"}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+        st.divider()
 
-            st.markdown(
-                '</div>',
-                unsafe_allow_html=True
-            )
+        st.subheader("⚙️ Verwaltung")
 
-        st.write("")
+        col_delete, col_back = st.columns(2)
 
-        # ----------------------------------------------------
-        # AKTIONEN
-        # ----------------------------------------------------
+        with col_back:
 
-        st.subheader("Aktionen")
+            if st.button(
+                "← Zur Übersicht",
+                use_container_width=True,
+            ):
+                st.session_state.page = "Übersicht"
+                st.session_state.selected_id = None
+                st.rerun()
 
-        if st.button(
-            "📅 Abholung vereinbaren",
-            use_container_width=True
-        ):
+        with col_delete:
 
-            st.info(
-                "Die Abholfunktion kann hier später ergänzt werden."
-            )
+            if st.button(
+                "🗑️ Fundstück löschen",
+                use_container_width=True,
+            ):
 
-        if st.button(
-            "🗑️ Fundstück löschen",
-            use_container_width=True
-        ):
+                item_id = selected_item.get("id")
 
-            remaining_items = [
-                item
-                for item in items
-                if item.get("id")
-                != selected_item.get("id")
-            ]
+                items = [
+                    item for item in items
+                    if item.get("id") != item_id
+                ]
 
-            save_items(
-                remaining_items
-            )
+                delete_image(
+                    selected_item.get("image_path")
+                )
 
-            st.session_state.selected_id = None
-            st.session_state.page = "Übersicht"
+                if save_items(items):
 
-            st.success(
-                "Fundstück wurde gelöscht."
-            )
+                    st.success(
+                        "Das Fundstück wurde gelöscht."
+                    )
 
-            st.rerun()
+                    st.session_state.selected_id = None
+                    st.session_state.page = "Übersicht"
+
+                    st.rerun()
 
 
 # ============================================================
@@ -1423,8 +1067,14 @@ elif st.session_state.page == "Details":
 
 st.markdown(
     """
-    <div class="footer">
-        Digitales Fundbüro · KI-gestützte Fundstück-Erkennung
+    <div style="
+        text-align:center;
+        color:#9ca3af;
+        margin-top:3rem;
+        padding-top:1rem;
+        border-top:1px solid #e5e7eb;
+    ">
+        🔎 Digitales Fundbüro · KI-gestützte Fundstück-Erkennung
     </div>
     """,
     unsafe_allow_html=True,
