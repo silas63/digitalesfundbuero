@@ -1,20 +1,27 @@
-import streamlit as st
-import tensorflow as tf
-import numpy as np
-from PIL import Image
-import json
-import os
 import base64
 import io
+import json
+import os
+import uuid
 from datetime import datetime
-import html
+
+import numpy as np
+import streamlit as st
+from PIL import Image, ImageOps
+
+# TensorFlow darf fehlen, ohne dass die komplette App abstürzt.
+try:
+    import tensorflow as tf
+except Exception:
+    tf = None
+
 
 # ============================================================
 # KONFIGURATION
 # ============================================================
 
 st.set_page_config(
-    page_title="Fundbüro",
+    page_title="Digitales Fundbüro",
     page_icon="🔎",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -37,7 +44,6 @@ st.markdown(
     <style>
     .stApp {
         background: #f7f7f5;
-        color: #171717;
     }
 
     .block-container {
@@ -46,228 +52,95 @@ st.markdown(
         padding-bottom: 70px;
     }
 
-    header[data-testid="stHeader"] {
-        background: transparent;
+    .brand {
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: -0.2px;
+        margin-bottom: 8px;
     }
 
-    /* BRAND */
-    .brand {
-        display: flex;
-        align-items: center;
-        gap: 12px;
+    .brand-sub {
+        color: #8b8b8b;
+        font-size: 12px;
+        margin-bottom: 34px;
+    }
+
+    .hero-box {
+        background: #ffffff;
+        border: 1px solid #e7e7e4;
+        border-radius: 28px;
+        padding: 46px 48px;
         margin-bottom: 24px;
     }
 
-    .brand-icon {
-        width: 44px;
-        height: 44px;
-        border-radius: 14px;
-        background: #171717;
-        color: white;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 21px;
-    }
-
-    .brand-name {
-        font-size: 18px;
-        font-weight: 800;
-        line-height: 1.05;
-        letter-spacing: -0.5px;
-    }
-
-    .brand-small {
-        font-size: 11px;
-        color: #888;
-        margin-top: 4px;
-        font-weight: 500;
-    }
-
-    /* NAVIGATION */
-    div[role="radiogroup"] {
-        gap: 6px;
-        margin-bottom: 25px;
-    }
-
-    div[role="radiogroup"] label {
-        border-radius: 999px !important;
-        padding: 7px 14px !important;
-    }
-
-    /* HERO */
-    .hero {
-        background: white;
-        border: 1px solid #e8e8e5;
-        border-radius: 28px;
-        padding: 48px 52px;
-        margin-bottom: 20px;
-        position: relative;
-        overflow: hidden;
-    }
-
-    .hero:after {
-        content: "";
-        position: absolute;
-        width: 260px;
-        height: 260px;
-        border-radius: 50%;
-        background: #f0f0ed;
-        right: -90px;
-        top: -110px;
-    }
-
-    .hero-kicker,
-    .section-kicker {
-        color: #888;
-        text-transform: uppercase;
-        letter-spacing: 1.5px;
-        font-size: 10px;
-        font-weight: 700;
-    }
-
     .hero-kicker {
-        margin-bottom: 15px;
+        color: #7d7d79;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1.6px;
+        margin-bottom: 12px;
     }
 
     .hero-title {
-        position: relative;
-        z-index: 1;
-        font-size: clamp(44px, 6vw, 76px);
-        line-height: .95;
+        color: #171717;
+        font-size: clamp(48px, 7vw, 78px);
+        line-height: 0.95;
+        font-weight: 800;
         letter-spacing: -4px;
-        font-weight: 800;
-        margin-bottom: 22px;
-        color: #111;
-    }
-
-    .hero-description {
-        position: relative;
-        z-index: 1;
-        max-width: 540px;
-        color: #707070;
-        font-size: 16px;
-        line-height: 1.6;
-    }
-
-    /* STATS */
-    .stat {
-        background: white;
-        border: 1px solid #e8e8e5;
-        border-radius: 20px;
-        padding: 22px 24px;
-        min-height: 112px;
-    }
-
-    .stat-number {
-        font-size: 34px;
-        font-weight: 800;
-        letter-spacing: -2px;
-    }
-
-    .stat-label {
-        color: #888;
-        font-size: 13px;
-        margin-top: 7px;
-    }
-
-    /* SECTIONS */
-    .section {
-        margin-top: 48px;
         margin-bottom: 20px;
     }
 
-    .section-title {
-        font-size: 30px;
+    .hero-text {
+        max-width: 560px;
+        color: #707070;
+        font-size: 15px;
+        line-height: 1.65;
+    }
+
+    .section-kicker {
+        color: #999;
+        font-size: 10px;
         font-weight: 800;
-        letter-spacing: -1.5px;
-        margin-top: 5px;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        margin-top: 34px;
+        margin-bottom: 5px;
     }
 
-    /* CARDS */
-    div[data-testid="stVerticalBlockBorderWrapper"] {
-        background: white;
-        border-color: #e7e7e4 !important;
-        border-radius: 22px !important;
+    .section-title {
+        font-size: 29px;
+        font-weight: 800;
+        letter-spacing: -1.2px;
+        margin-bottom: 18px;
     }
 
-    div[data-testid="stVerticalBlockBorderWrapper"]:hover {
-        border-color: #cfcfcb !important;
-        box-shadow: 0 14px 34px rgba(0,0,0,.07);
-    }
-
-    /* BUTTONS */
-    .stButton > button {
-        border-radius: 12px !important;
-        border: 1px solid #dededb !important;
-        background: white !important;
-        color: #171717 !important;
-        font-weight: 600 !important;
-        min-height: 42px;
-    }
-
-    .stButton > button:hover {
-        border-color: #171717 !important;
-        background: #171717 !important;
-        color: white !important;
-    }
-
-    /* INPUTS */
-    div[data-baseweb="input"] > div,
-    div[data-baseweb="textarea"] > div,
-    div[data-baseweb="select"] > div {
-        border-radius: 12px !important;
-        border-color: #dededb !important;
-        background: white !important;
-    }
-
-    /* EMPTY */
-    .empty {
-        background: white;
-        border: 1px dashed #d5d5d1;
+    .empty-box {
+        background: #fff;
+        border: 1px dashed #d3d3cf;
         border-radius: 22px;
-        padding: 48px 25px;
+        padding: 42px 28px;
         text-align: center;
-    }
-
-    .empty-icon {
-        font-size: 32px;
-        margin-bottom: 10px;
+        color: #666;
     }
 
     .empty-title {
+        color: #222;
         font-size: 20px;
         font-weight: 800;
+        margin-bottom: 7px;
     }
 
-    .empty-text {
-        color: #888;
-        margin-top: 6px;
+    div[data-testid="stFileUploaderDropzone"] {
+        border-radius: 16px;
+        border: 1px dashed #cfcfcb;
+        background: #fff;
     }
 
-    /* PILLS */
-    .pill-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 7px;
-        margin: 10px 0 4px 0;
-    }
-
-    .pill {
-        display: inline-block;
-        border: 1px solid #e4e4e1;
-        background: #fafaf9;
-        border-radius: 999px;
-        padding: 5px 9px;
-        font-size: 11px;
-        color: #666;
-        font-weight: 600;
-    }
-
-    .pill-main {
-        background: #171717;
-        border-color: #171717;
-        color: white;
+    .stButton > button {
+        border-radius: 12px !important;
+        min-height: 42px;
+        font-weight: 700 !important;
     }
 
     @media (max-width: 700px) {
@@ -276,14 +149,14 @@ st.markdown(
             padding-right: 16px;
         }
 
-        .hero {
-            padding: 34px 27px;
-            border-radius: 23px;
+        .hero-box {
+            padding: 30px 24px;
+            border-radius: 22px;
         }
 
         .hero-title {
-            font-size: 48px;
-            letter-spacing: -3px;
+            font-size: 49px;
+            letter-spacing: -2.7px;
         }
     }
     </style>
@@ -297,24 +170,46 @@ st.markdown(
 # ============================================================
 
 def load_items():
-    if not os.path.exists(DATA_FILE):
+    if not os.path.isfile(DATA_FILE):
         return []
 
     try:
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        with open(DATA_FILE, "r", encoding="utf-8") as file:
+            raw = json.load(file)
 
-        return data if isinstance(data, list) else []
+        if isinstance(raw, list):
+            data = raw
+        elif isinstance(raw, dict) and isinstance(raw.get("fundstuecke"), list):
+            data = raw["fundstuecke"]
+        else:
+            return []
+
+        return [item for item in data if isinstance(item, dict)]
 
     except Exception:
         return []
 
 
-def save_items(items):
+def save_items(data):
     os.makedirs(DATA_DIR, exist_ok=True)
 
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(items, f, ensure_ascii=False, indent=2)
+    temp_file = DATA_FILE + ".tmp"
+
+    with open(temp_file, "w", encoding="utf-8") as file:
+        json.dump(data, file, ensure_ascii=False, indent=2)
+
+    os.replace(temp_file, DATA_FILE)
+
+
+def sort_items(data):
+    def sort_key(item):
+        return str(
+            item.get("created_at")
+            or item.get("id")
+            or ""
+        )
+
+    return sorted(data, key=sort_key, reverse=True)
 
 
 items = load_items()
@@ -324,54 +219,75 @@ items = load_items()
 # BILDER
 # ============================================================
 
+def prepare_image(image):
+    image = ImageOps.exif_transpose(image).convert("RGB")
+    image = image.copy()
+    image.thumbnail((1400, 1400), Image.Resampling.LANCZOS)
+    return image
+
+
 def image_to_base64(image):
+    image = prepare_image(image)
+
     buffer = io.BytesIO()
 
-    image.convert("RGB").save(
+    image.save(
         buffer,
         format="JPEG",
-        quality=88,
+        quality=84,
         optimize=True,
     )
 
-    return base64.b64encode(buffer.getvalue()).decode("utf-8")
+    return base64.b64encode(
+        buffer.getvalue()
+    ).decode("utf-8")
 
 
-def base64_to_image(data):
+def base64_to_image(value):
     try:
-        raw = base64.b64decode(data)
-        return Image.open(io.BytesIO(raw)).convert("RGB")
+        raw = base64.b64decode(value, validate=True)
+
+        return Image.open(
+            io.BytesIO(raw)
+        ).convert("RGB")
+
     except Exception:
         return None
 
 
 def get_item_image(item):
-    data = item.get("image_data")
+    image_data = item.get("image_data")
 
-    if data:
-        image = base64_to_image(data)
+    if image_data:
+        image = base64_to_image(image_data)
 
         if image is not None:
             return image
 
     old_path = item.get("image_path")
 
-    if old_path and os.path.exists(old_path):
+    if old_path and os.path.isfile(old_path):
         try:
-            return Image.open(old_path).convert("RGB")
+            return ImageOps.exif_transpose(
+                Image.open(old_path)
+            ).convert("RGB")
+
         except Exception:
-            pass
+            return None
 
     return None
 
 
 # ============================================================
-# KI
+# KI-MODELL
 # ============================================================
 
 @st.cache_resource
 def load_model():
-    if not os.path.exists(MODEL_FILE):
+    if tf is None:
+        return None
+
+    if not os.path.isfile(MODEL_FILE):
         return None
 
     try:
@@ -379,29 +295,42 @@ def load_model():
             MODEL_FILE,
             compile=False,
         )
+
     except Exception:
         return None
 
 
 @st.cache_data
 def load_labels():
-    if not os.path.exists(LABELS_FILE):
+    if not os.path.isfile(LABELS_FILE):
         return []
 
     labels = []
 
     try:
-        with open(LABELS_FILE, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
+        with open(
+            LABELS_FILE,
+            "r",
+            encoding="utf-8",
+        ) as file:
+
+            for raw_line in file:
+                line = raw_line.strip()
 
                 if not line:
                     continue
 
-                parts = line.split(maxsplit=1)
+                parts = line.split(
+                    maxsplit=1
+                )
 
-                if len(parts) == 2:
-                    labels.append(parts[1].strip())
+                if (
+                    len(parts) == 2
+                    and parts[0].isdigit()
+                ):
+                    labels.append(
+                        parts[1].strip()
+                    )
                 else:
                     labels.append(line)
 
@@ -412,31 +341,93 @@ def load_labels():
 
 
 def classify_image(image):
+    model = load_model()
+    labels = load_labels()
+
+    if model is None or not labels:
+        return "Unbekannt", 0.0
+
     try:
-        model = load_model()
-        labels = load_labels()
+        input_shape = model.input_shape
 
-        if model is None or not labels:
-            return "Unbekannt", 0.0
+        if isinstance(
+            input_shape,
+            list,
+        ):
+            input_shape = input_shape[0]
 
-        image = image.convert("RGB").resize((224, 224))
+        height = int(
+            input_shape[1] or 224
+        )
 
-        array = np.asarray(image, dtype=np.float32)
-        array = (array / 127.5) - 1.0
-        array = np.expand_dims(array, axis=0)
+        width = int(
+            input_shape[2] or 224
+        )
+
+        channels = int(
+            input_shape[3] or 3
+        )
+
+        image = (
+            image
+            .convert("RGB")
+            .resize(
+                (width, height)
+            )
+        )
+
+        array = np.asarray(
+            image,
+            dtype=np.float32,
+        )
+
+        if channels == 1:
+            array = np.mean(
+                array,
+                axis=2,
+                keepdims=True,
+            )
+
+        array = (
+            array / 127.5
+        ) - 1.0
+
+        array = np.expand_dims(
+            array,
+            axis=0,
+        )
 
         prediction = model.predict(
             array,
-            verbose=0
+            verbose=0,
         )[0]
 
-        index = int(np.argmax(prediction))
-        confidence = float(prediction[index])
+        prediction = np.asarray(
+            prediction,
+            dtype=np.float32,
+        ).reshape(-1)
+
+        if prediction.size == 0:
+            return "Unbekannt", 0.0
+
+        index = int(
+            np.argmax(prediction)
+        )
+
+        confidence = float(
+            prediction[index]
+        )
 
         if index >= len(labels):
-            return "Unbekannt", confidence
+            return (
+                "Unbekannt",
+                confidence,
+            )
 
-        return labels[index], confidence
+        return (
+            labels[index],
+            confidence,
+        )
 
     except Exception:
         return "Unbekannt", 0.0
@@ -458,16 +449,12 @@ if "selected_id" not in st.session_state:
 # ============================================================
 
 st.markdown(
-    """
-    <div class="brand">
-        <div class="brand-icon">🔎</div>
+    '<div class="brand">🔎 Fundbüro</div>',
+    unsafe_allow_html=True,
+)
 
-        <div>
-            <div class="brand-name">Fundbüro</div>
-            <div class="brand-small">Digital</div>
-        </div>
-    </div>
-    """,
+st.markdown(
+    '<div class="brand-sub">Digital</div>',
     unsafe_allow_html=True,
 )
 
@@ -481,10 +468,11 @@ page = st.radio(
     [
         "Übersicht",
         "Neues Fundstück",
-        "Suche"
+        "Suche",
     ],
     horizontal=True,
     label_visibility="collapsed",
+    key="main_navigation",
 )
 
 st.session_state.page = page
@@ -494,14 +482,16 @@ st.session_state.page = page
 # DETAILANSICHT
 # ============================================================
 
-if st.session_state.selected_id is not None:
+selected_id = st.session_state.selected_id
+
+if selected_id is not None:
 
     selected = next(
         (
             item
             for item in items
             if str(item.get("id"))
-            == str(st.session_state.selected_id)
+            == str(selected_id)
         ),
         None,
     )
@@ -509,37 +499,31 @@ if st.session_state.selected_id is not None:
     if selected is not None:
 
         st.markdown(
-            """
-            <div class="section">
-                <div class="section-kicker">
-                    Fundstück
-                </div>
+            '<div class="section-kicker">Fundstück</div>',
+            unsafe_allow_html=True,
+        )
 
-                <div class="section-title">
-                    Details
-                </div>
-            </div>
-            """,
+        st.markdown(
+            '<div class="section-title">Details</div>',
             unsafe_allow_html=True,
         )
 
         left, right = st.columns(
-            [1.15, 0.85],
-            gap="large"
+            [1.1, 0.9],
+            gap="large",
         )
 
         with left:
 
-            image = get_item_image(selected)
+            image = get_item_image(
+                selected
+            )
 
             if image is not None:
-                st.image(
-                    image,
-                    use_container_width=True
-                )
+                st.image(image)
             else:
                 st.info(
-                    "Für dieses Fundstück ist kein Bild gespeichert."
+                    "Kein Bild gespeichert."
                 )
 
         with right:
@@ -570,119 +554,68 @@ if st.session_state.selected_id is not None:
             )
 
             st.markdown(
-                f"""
-                <div style="
-                    background:white;
-                    border:1px solid #e7e7e4;
-                    border-radius:22px;
-                    padding:25px;
-                ">
+                f"### {name}"
+            )
 
-                    <div style="
-                        font-size:34px;
-                        font-weight:800;
-                        letter-spacing:-1.5px;
-                        margin-bottom:15px;
-                    ">
-                        {html.escape(name)}
-                    </div>
+            st.caption(
+                f"Kategorie: {category}"
+            )
 
-                    <div class="pill-row">
+            st.caption(
+                f"Fundort: {location}"
+            )
 
-                        <span class="pill pill-main">
-                            {html.escape(category)}
-                        </span>
+            st.caption(
+                f"Datum: {date}"
+            )
 
-                        <span class="pill">
-                            📍 {html.escape(location)}
-                        </span>
+            st.markdown(
+                "**Beschreibung**"
+            )
 
-                    </div>
-
-                    <div style="
-                        margin-top:24px;
-                        color:#999;
-                        font-size:11px;
-                        text-transform:uppercase;
-                        letter-spacing:1.2px;
-                        font-weight:700;
-                    ">
-                        Gefunden am
-                    </div>
-
-                    <div style="
-                        margin-top:5px;
-                        color:#444;
-                    ">
-                        {html.escape(date)}
-                    </div>
-
-                    <div style="
-                        margin-top:24px;
-                        color:#999;
-                        font-size:11px;
-                        text-transform:uppercase;
-                        letter-spacing:1.2px;
-                        font-weight:700;
-                    ">
-                        Beschreibung
-                    </div>
-
-                    <div style="
-                        margin-top:5px;
-                        color:#444;
-                        line-height:1.6;
-                    ">
-                        {html.escape(description)}
-                    </div>
-
-                </div>
-                """,
-                unsafe_allow_html=True,
+            st.write(
+                description
             )
 
             st.write("")
 
-            back, delete = st.columns(2)
+            back_col, delete_col = st.columns(2)
 
-            with back:
+            with back_col:
 
                 if st.button(
                     "← Zur Übersicht",
-                    key="back_details",
                     use_container_width=True,
+                    key="detail_back",
                 ):
-
                     st.session_state.selected_id = None
-                    st.session_state.page = "Übersicht"
                     st.rerun()
 
-            with delete:
+            with delete_col:
 
                 if st.button(
-                    "Fundstück löschen",
-                    key="delete_details",
+                    "Löschen",
                     use_container_width=True,
+                    key="detail_delete",
                 ):
-
                     items = [
-                        x
-                        for x in items
-                        if str(x.get("id"))
-                        != str(selected.get("id"))
+                        item
+                        for item in items
+                        if str(item.get("id"))
+                        != str(
+                            selected.get("id")
+                        )
                     ]
 
                     save_items(items)
 
                     st.session_state.selected_id = None
-                    st.session_state.page = "Übersicht"
 
                     st.rerun()
 
-    else:
-        st.session_state.selected_id = None
+        st.stop()
 
-    st.stop()
+    st.session_state.selected_id = None
 
 
 # ============================================================
@@ -693,7 +626,7 @@ if page == "Übersicht":
 
     st.markdown(
         """
-        <div class="hero">
+        <div class="hero-box">
 
             <div class="hero-kicker">
                 Digitales Fundbüro
@@ -704,9 +637,10 @@ if page == "Übersicht":
                 Gespeichert.
             </div>
 
-            <div class="hero-description">
-                Fundstücke fotografieren, automatisch erkennen
-                und später schnell wiederfinden.
+            <div class="hero-text">
+                Fundstücke fotografieren,
+                automatisch erkennen und später
+                schnell wiederfinden.
             </div>
 
         </div>
@@ -715,63 +649,41 @@ if page == "Übersicht":
     )
 
     categories = {
-        str(x.get("category"))
-        for x in items
-        if x.get("category")
+        str(item.get("category"))
+        for item in items
+        if item.get("category")
     }
 
     locations = {
-        str(x.get("location"))
-        for x in items
-        if x.get("location")
+        str(item.get("location"))
+        for item in items
+        if item.get("location")
     }
 
-    stats = [
-        (len(items), "Fundstücke"),
-        (len(categories), "Kategorien"),
-        (len(locations), "Fundorte"),
-    ]
+    c1, c2, c3 = st.columns(3)
 
-    stat_cols = st.columns(3)
+    c1.metric(
+        "Fundstücke",
+        len(items),
+    )
 
-    for col, (number, label) in zip(
-        stat_cols,
-        stats
-    ):
+    c2.metric(
+        "Kategorien",
+        len(categories),
+    )
 
-        with col:
-
-            st.markdown(
-                f"""
-                <div class="stat">
-
-                    <div class="stat-number">
-                        {number}
-                    </div>
-
-                    <div class="stat-label">
-                        {label}
-                    </div>
-
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+    c3.metric(
+        "Fundorte",
+        len(locations),
+    )
 
     st.markdown(
-        """
-        <div class="section">
+        '<div class="section-kicker">Fundstücke</div>',
+        unsafe_allow_html=True,
+    )
 
-            <div class="section-kicker">
-                Fundstücke
-            </div>
-
-            <div class="section-title">
-                Zuletzt
-            </div>
-
-        </div>
-        """,
+    st.markdown(
+        '<div class="section-title">Zuletzt</div>',
         unsafe_allow_html=True,
     )
 
@@ -779,21 +691,12 @@ if page == "Übersicht":
 
         st.markdown(
             """
-            <div class="empty">
-
-                <div class="empty-icon">
-                    🔎
-                </div>
-
+            <div class="empty-box">
                 <div class="empty-title">
                     Noch keine Fundstücke
                 </div>
 
-                <div class="empty-text">
-                    Füge dein erstes Fundstück hinzu
-                    und es erscheint hier.
-                </div>
-
+                Füge dein erstes Fundstück hinzu.
             </div>
             """,
             unsafe_allow_html=True,
@@ -801,116 +704,77 @@ if page == "Übersicht":
 
     else:
 
-        recent_items = list(
-            reversed(items[-6:])
-        )
+        recent = sort_items(items)[:6]
 
         for start in range(
             0,
-            len(recent_items),
-            3
+            len(recent),
+            3,
         ):
 
-            row = recent_items[
+            row = recent[
                 start:start + 3
             ]
 
-            columns = st.columns(
-                3,
-                gap="medium"
+            cols = st.columns(
+                len(row),
+                gap="large",
             )
 
             for col, item in zip(
-                columns,
-                row
+                cols,
+                row,
             ):
 
                 with col:
 
-                    with st.container(
-                        border=True
+                    image = get_item_image(
+                        item
+                    )
+
+                    if image is not None:
+                        st.image(image)
+                    else:
+                        st.info("Kein Bild")
+
+                    name = str(
+                        item.get("name")
+                        or "Fundstück"
+                    )
+
+                    category = str(
+                        item.get("category")
+                        or "Unbekannt"
+                    )
+
+                    location = str(
+                        item.get("location")
+                        or "Unbekannt"
+                    )
+
+                    st.markdown(
+                        f"**{name}**"
+                    )
+
+                    st.caption(
+                        f"{category} · 📍 {location}"
+                    )
+
+                    if st.button(
+                        "Details →",
+                        key=(
+                            "overview_details_"
+                            + str(
+                                item.get("id")
+                            )
+                        ),
+                        use_container_width=True,
                     ):
-
-                        image = get_item_image(item)
-
-                        if image is not None:
-
-                            st.image(
-                                image,
-                                use_container_width=True
-                            )
-
-                        else:
-
-                            st.markdown(
-                                """
-                                <div style="
-                                    height:180px;
-                                    display:flex;
-                                    align-items:center;
-                                    justify-content:center;
-                                    background:#f1f1ef;
-                                    border-radius:15px;
-                                    font-size:34px;
-                                ">
-                                    🔎
-                                </div>
-                                """,
-                                unsafe_allow_html=True,
-                            )
-
-                        name = str(
-                            item.get("name")
-                            or "Fundstück"
+                        st.session_state.selected_id = item.get(
+                            "id"
                         )
 
-                        category = str(
-                            item.get("category")
-                            or "Unbekannt"
-                        )
-
-                        location = str(
-                            item.get("location")
-                            or "Unbekannt"
-                        )
-
-                        st.markdown(
-                            f"""
-                            <div style="
-                                font-size:18px;
-                                font-weight:800;
-                                margin-top:12px;
-                                margin-bottom:7px;
-                            ">
-                                {html.escape(name)}
-                            </div>
-
-                            <div class="pill-row">
-
-                                <span class="pill pill-main">
-                                    {html.escape(category)}
-                                </span>
-
-                                <span class="pill">
-                                    📍 {html.escape(location)}
-                                </span>
-
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-
-                        if st.button(
-                            "Details →",
-                            key=f"details_{item.get('id')}",
-                            use_container_width=True,
-                        ):
-
-                            st.session_state.selected_id = item.get(
-                                "id"
-                            )
-
-                            st.rerun()
+                        st.rerun()
 
 
 # ============================================================
@@ -920,30 +784,23 @@ if page == "Übersicht":
 elif page == "Neues Fundstück":
 
     st.markdown(
-        """
-        <div class="section">
+        '<div class="section-kicker">Neu</div>',
+        unsafe_allow_html=True,
+    )
 
-            <div class="section-kicker">
-                Neu
-            </div>
-
-            <div class="section-title">
-                Fundstück hinzufügen
-            </div>
-
-        </div>
-        """,
+    st.markdown(
+        '<div class="section-title">Fundstück hinzufügen</div>',
         unsafe_allow_html=True,
     )
 
     left, right = st.columns(
-        2,
-        gap="large"
+        [1, 1],
+        gap="large",
     )
 
     with left:
 
-        st.subheader("1. Foto")
+        st.markdown("### Foto")
 
         uploaded = st.file_uploader(
             "Bild hochladen",
@@ -951,15 +808,18 @@ elif page == "Neues Fundstück":
                 "jpg",
                 "jpeg",
                 "png",
-                "webp"
+                "webp",
             ],
+            label_visibility="collapsed",
+            key="upload_image",
         )
 
         camera = st.camera_input(
-            "Oder direkt fotografieren"
+            "Oder Kamera verwenden",
+            key="camera_image",
         )
 
-        image_source = (
+        source = (
             camera
             if camera is not None
             else uploaded
@@ -967,20 +827,21 @@ elif page == "Neues Fundstück":
 
         current_image = None
 
-        if image_source is not None:
+        if source is not None:
 
             try:
 
-                current_image = Image.open(
-                    image_source
-                ).convert("RGB")
+                current_image = prepare_image(
+                    Image.open(source)
+                )
 
                 st.image(
-                    current_image,
-                    use_container_width=True
+                    current_image
                 )
 
             except Exception:
+
+                current_image = None
 
                 st.error(
                     "Das Bild konnte nicht gelesen werden."
@@ -988,33 +849,45 @@ elif page == "Neues Fundstück":
 
     with right:
 
-        st.subheader("2. Informationen")
+        st.markdown(
+            "### Informationen"
+        )
 
         name = st.text_input(
             "Name",
-            placeholder="z. B. Schwarzer Rucksack",
+            placeholder=(
+                "z. B. Schwarzer Rucksack"
+            ),
+            key="new_name",
         )
 
         location = st.text_input(
             "Fundort",
-            placeholder="z. B. Sporthalle",
+            placeholder=(
+                "z. B. Sporthalle"
+            ),
+            key="new_location",
         )
 
         description = st.text_area(
             "Beschreibung",
-            placeholder="Weitere Merkmale oder Hinweise …",
-            height=120,
+            placeholder=(
+                "Weitere Merkmale oder Hinweise"
+            ),
+            height=130,
+            key="new_description",
         )
 
         if st.button(
             "Fundstück speichern",
             use_container_width=True,
+            key="save_item",
         ):
 
             if current_image is None:
 
                 st.warning(
-                    "Bitte zuerst ein Foto auswählen."
+                    "Bitte zuerst ein Bild auswählen."
                 )
 
             elif not location.strip():
@@ -1025,17 +898,15 @@ elif page == "Neues Fundstück":
 
             else:
 
-                with st.spinner(
-                    "Bild wird analysiert …"
-                ):
-
-                    category, confidence = classify_image(
-                        current_image
-                    )
+                category, confidence = classify_image(
+                    current_image
+                )
 
                 new_item = {
-                    "id": datetime.now().strftime(
-                        "%Y%m%d%H%M%S%f"
+                    "id": uuid.uuid4().hex,
+
+                    "created_at": datetime.now().isoformat(
+                        timespec="seconds"
                     ),
 
                     "name": (
@@ -1045,7 +916,9 @@ elif page == "Neues Fundstück":
 
                     "category": category,
 
-                    "location": location.strip(),
+                    "location": (
+                        location.strip()
+                    ),
 
                     "date": datetime.now().strftime(
                         "%d.%m.%Y"
@@ -1061,19 +934,19 @@ elif page == "Neues Fundstück":
 
                     "confidence": round(
                         confidence,
-                        4
+                        4,
                     ),
                 }
 
-                items.append(new_item)
+                items.append(
+                    new_item
+                )
 
                 save_items(items)
 
+                st.session_state.selected_id = None
                 st.session_state.page = "Übersicht"
-
-                st.success(
-                    f"Gespeichert · erkannt als „{category}“"
-                )
+                st.session_state.main_navigation = "Übersicht"
 
                 st.rerun()
 
@@ -1085,69 +958,75 @@ elif page == "Neues Fundstück":
 elif page == "Suche":
 
     st.markdown(
-        """
-        <div class="section">
+        '<div class="section-kicker">Finden</div>',
+        unsafe_allow_html=True,
+    )
 
-            <div class="section-kicker">
-                Finden
-            </div>
-
-            <div class="section-title">
-                Fundstücke suchen
-            </div>
-
-        </div>
-        """,
+    st.markdown(
+        '<div class="section-title">Fundstücke suchen</div>',
         unsafe_allow_html=True,
     )
 
     search = st.text_input(
         "Suche",
         placeholder=(
-            "Name, Kategorie, Fundort "
-            "oder Beschreibung …"
+            "Name, Kategorie, Fundort oder Beschreibung"
         ),
         label_visibility="collapsed",
+        key="search_input",
     )
 
-    query = search.lower().strip()
+    needle = search.strip().casefold()
 
-    if query:
+    if needle:
 
-        results = [
-            item
-            for item in items
-            if query in " ".join(
+        results = []
+
+        for item in items:
+
+            searchable = " ".join(
                 [
-                    str(item.get("name", "")),
-                    str(item.get("category", "")),
-                    str(item.get("location", "")),
-                    str(item.get("description", "")),
+                    str(
+                        item.get("name")
+                        or ""
+                    ),
+                    str(
+                        item.get("category")
+                        or ""
+                    ),
+                    str(
+                        item.get("location")
+                        or ""
+                    ),
+                    str(
+                        item.get("description")
+                        or ""
+                    ),
                 ]
-            ).lower()
-        ]
+            ).casefold()
+
+            if needle in searchable:
+                results.append(
+                    item
+                )
 
     else:
 
-        results = items
+        results = sort_items(
+            items
+        )
 
     if not results:
 
         st.markdown(
             """
-            <div class="empty">
-
-                <div class="empty-icon">
-                    ⌕
-                </div>
+            <div class="empty-box">
 
                 <div class="empty-title">
                     Nichts gefunden
                 </div>
 
-                <div class="empty-text">
-                    Versuche einen anderen Suchbegriff.
-                </div>
+                Versuche einen anderen Suchbegriff.
 
             </div>
             """,
@@ -1163,112 +1042,74 @@ elif page == "Suche":
                 if len(results) == 1
                 else "e"
             )
-            + " gefunden"
         )
 
         for start in range(
             0,
             len(results),
-            3
+            3,
         ):
 
             row = results[
                 start:start + 3
             ]
 
-            columns = st.columns(
-                3,
-                gap="medium"
+            cols = st.columns(
+                len(row),
+                gap="large",
             )
 
             for col, item in zip(
-                columns,
-                row
+                cols,
+                row,
             ):
 
                 with col:
 
-                    with st.container(
-                        border=True
+                    image = get_item_image(
+                        item
+                    )
+
+                    if image is not None:
+                        st.image(image)
+                    else:
+                        st.info("Kein Bild")
+
+                    name = str(
+                        item.get("name")
+                        or "Fundstück"
+                    )
+
+                    category = str(
+                        item.get("category")
+                        or "Unbekannt"
+                    )
+
+                    location = str(
+                        item.get("location")
+                        or "Unbekannt"
+                    )
+
+                    st.markdown(
+                        f"**{name}**"
+                    )
+
+                    st.caption(
+                        f"{category} · 📍 {location}"
+                    )
+
+                    if st.button(
+                        "Details →",
+                        key=(
+                            "search_details_"
+                            + str(
+                                item.get("id")
+                            )
+                        ),
+                        use_container_width=True,
                     ):
-
-                        image = get_item_image(item)
-
-                        if image is not None:
-
-                            st.image(
-                                image,
-                                use_container_width=True
-                            )
-
-                        else:
-
-                            st.markdown(
-                                """
-                                <div style="
-                                    height:180px;
-                                    display:flex;
-                                    align-items:center;
-                                    justify-content:center;
-                                    background:#f1f1ef;
-                                    border-radius:15px;
-                                    font-size:34px;
-                                ">
-                                    🔎
-                                </div>
-                                """,
-                                unsafe_allow_html=True,
-                            )
-
-                        name = str(
-                            item.get("name")
-                            or "Fundstück"
+                        st.session_state.selected_id = item.get(
+                            "id"
                         )
 
-                        category = str(
-                            item.get("category")
-                            or "Unbekannt"
-                        )
-
-                        location = str(
-                            item.get("location")
-                            or "Unbekannt"
-                        )
-
-                        st.markdown(
-                            f"""
-                            <div style="
-                                font-size:18px;
-                                font-weight:800;
-                                margin-top:12px;
-                                margin-bottom:7px;
-                            ">
-                                {html.escape(name)}
-                            </div>
-
-                            <div class="pill-row">
-
-                                <span class="pill pill-main">
-                                    {html.escape(category)}
-                                </span>
-
-                                <span class="pill">
-                                    📍 {html.escape(location)}
-                                </span>
-
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-
-                        if st.button(
-                            "Details →",
-                            key=f"search_details_{item.get('id')}",
-                            use_container_width=True,
-                        ):
-
-                            st.session_state.selected_id = item.get(
-                                "id"
-                            )
-
-                            st.rerun()
+                        st.rerun()
