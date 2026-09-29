@@ -9,14 +9,12 @@ import io
 import html
 from datetime import datetime
 
-
 st.set_page_config(
-    page_title="Digitales Fundbüro",
-    page_icon="🔎",
-    layout="wide",
-    initial_sidebar_state="collapsed",
+page_title="Digitales Fundbüro",
+page_icon="🔎",
+layout="wide",
+initial_sidebar_state="collapsed",
 )
-
 
 DATA_DIR = "fundburo_data"
 DATA_FILE = os.path.join(DATA_DIR, "fundstuecke.json")
@@ -25,9 +23,9 @@ LABELS_FILE = "labels.txt"
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
-
 st.markdown(
-    """
+"""
+
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
@@ -98,189 +96,139 @@ div[role="radiogroup"] label:hover { background:#ededeb !important; }
   .section-title { font-size:27px; }
 }
 </style>
+
 """,
-    unsafe_allow_html=True,
+unsafe_allow_html=True,
 )
 
-
 def load_items():
-    if not os.path.exists(DATA_FILE):
-        return []
-
-    try:
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        if isinstance(data, list):
-            return data
-
-        return []
-
-    except Exception:
-        return []
-
+if not os.path.exists(DATA_FILE):
+return []
+try:
+with open(DATA_FILE, "r", encoding="utf-8") as f:
+data = json.load(f)
+if isinstance(data, list):
+return data
+return []
+except Exception:
+return []
 
 def save_items(items):
-    os.makedirs(DATA_DIR, exist_ok=True)
-
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(items, f, ensure_ascii=False, indent=2)
-
+os.makedirs(DATA_DIR, exist_ok=True)
+with open(DATA_FILE, "w", encoding="utf-8") as f:
+json.dump(items, f, ensure_ascii=False, indent=2)
 
 items = load_items()
 
-
 def image_to_base64(image):
-    buffer = io.BytesIO()
-    image.convert("RGB").save(
-        buffer,
-        format="JPEG",
-        quality=88,
-        optimize=True
-    )
-
-    return base64.b64encode(buffer.getvalue()).decode("utf-8")
-
+buffer = io.BytesIO()
+image.convert("RGB").save(buffer, format="JPEG", quality=88, optimize=True)
+return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 def base64_to_image(data):
-    try:
-        raw = base64.b64decode(data)
-        return Image.open(io.BytesIO(raw)).convert("RGB")
-
-    except Exception:
-        return None
-
+try:
+raw = base64.b64decode(data)
+return Image.open(io.BytesIO(raw)).convert("RGB")
+except Exception:
+return None
 
 def get_item_image(item):
-    image_data = item.get("image_data")
+image_data = item.get("image_data")
+if image_data:
+image = base64_to_image(image_data)
+if image is not None:
+return image
 
-    if image_data:
-        image = base64_to_image(image_data)
-
-        if image is not None:
-            return image
-
-    old_path = item.get("image_path")
-
-    if old_path and os.path.exists(old_path):
-        try:
-            return Image.open(old_path).convert("RGB")
-        except Exception:
-            pass
-
-    return None
-
+old_path = item.get("image_path")
+if old_path and os.path.exists(old_path):
+    try:
+        return Image.open(old_path).convert("RGB")
+    except Exception:
+        pass
+return None
 
 def image_as_data_uri(item):
-    image_data = item.get("image_data")
+image_data = item.get("image_data")
+if image_data:
+return "data/jpeg;base64," + image_data
 
-    if image_data:
-        return "data:image/jpeg;base64," + image_data
+old_path = item.get("image_path")
+if old_path and os.path.exists(old_path):
+    try:
+        with open(old_path, "rb") as f:
+            encoded = base64.b64encode(f.read()).decode("utf-8")
+        return "data:image/jpeg;base64," + encoded
+    except Exception:
+        pass
 
-    old_path = item.get("image_path")
-
-    if old_path and os.path.exists(old_path):
-        try:
-            with open(old_path, "rb") as f:
-                encoded = base64.b64encode(f.read()).decode("utf-8")
-
-            return "data:image/jpeg;base64," + encoded
-
-        except Exception:
-            pass
-
-    return None
-
+return None
 
 @st.cache_resource
 def load_model():
-    if not os.path.exists(MODEL_FILE):
-        return None
-
-    try:
-        return tf.keras.models.load_model(
-            MODEL_FILE,
-            compile=False
-        )
-
-    except Exception:
-        return None
-
+if not os.path.exists(MODEL_FILE):
+return None
+try:
+return tf.keras.models.load_model(MODEL_FILE, compile=False)
+except Exception:
+return None
 
 @st.cache_data
 def load_labels():
-    if not os.path.exists(LABELS_FILE):
-        return []
+if not os.path.exists(LABELS_FILE):
+return []
 
-    labels = []
+labels = []
+try:
+    with open(LABELS_FILE, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split(maxsplit=1)
+            if len(parts) == 2:
+                labels.append(parts[1].strip())
+            else:
+                labels.append(line)
+except Exception:
+    return []
 
-    try:
-        with open(LABELS_FILE, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-
-                if not line:
-                    continue
-
-                parts = line.split(maxsplit=1)
-
-                if len(parts) == 2:
-                    labels.append(parts[1].strip())
-                else:
-                    labels.append(line)
-
-    except Exception:
-        return []
-
-    return labels
-
+return labels
 
 def classify_image(image):
-    try:
-        model = load_model()
-        labels = load_labels()
+try:
+model = load_model()
+labels = load_labels()
 
-        if model is None or not labels:
-            return "Unbekannt", 0.0
-
-        image = image.convert("RGB").resize((224, 224))
-
-        array = np.asarray(
-            image,
-            dtype=np.float32
-        )
-
-        array = (array / 127.5) - 1.0
-        array = np.expand_dims(array, axis=0)
-
-        prediction = model.predict(
-            array,
-            verbose=0
-        )[0]
-
-        index = int(np.argmax(prediction))
-        confidence = float(prediction[index])
-
-        if index >= len(labels):
-            return "Unbekannt", confidence
-
-        return labels[index], confidence
-
-    except Exception:
+    if model is None or not labels:
         return "Unbekannt", 0.0
 
+    image = image.convert("RGB").resize((224, 224))
+    array = np.asarray(image, dtype=np.float32)
+    array = (array / 127.5) - 1.0
+    array = np.expand_dims(array, axis=0)
+
+    prediction = model.predict(array, verbose=0)[0]
+    index = int(np.argmax(prediction))
+    confidence = float(prediction[index])
+
+    if index >= len(labels):
+        return "Unbekannt", confidence
+
+    return labels[index], confidence
+except Exception:
+    return "Unbekannt", 0.0
 
 if "page" not in st.session_state:
-    st.session_state.page = "Übersicht"
-
+st.session_state.page = "Übersicht"
 
 if "selected_id" not in st.session_state:
-    st.session_state.selected_id = None
+st.session_state.selected_id = None
 
+HEADER – bewusst schlicht, damit die Überschrift nicht mehr kaputt dargestellt wird
 
-# HEADER – bewusst schlicht, damit die Überschrift nicht mehr kaputt dargestellt wird
 st.markdown(
-    """
+"""
+
 <div class="brand">
   <div class="brand-icon">🔎</div>
   <div>
@@ -292,34 +240,31 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
 page = st.radio(
-    "Navigation",
-    ["Übersicht", "Neues Fundstück", "Suche"],
-    horizontal=True,
-    label_visibility="collapsed",
+"Navigation",
+["Übersicht", "Neues Fundstück", "Suche"],
+horizontal=True,
+label_visibility="collapsed",
 )
-
 st.session_state.page = page
 
+============================================================
 
-# ============================================================
-# DETAIL
-# ============================================================
+DETAIL
+
+============================================================
 
 if st.session_state.selected_id is not None:
+selected = None
+for item in items:
+if str(item.get("id")) == str(st.session_state.selected_id):
+selected = item
+break
 
-    selected = None
+if selected is not None:
+    st.markdown(
+        """
 
-    for item in items:
-        if str(item.get("id")) == str(st.session_state.selected_id):
-            selected = item
-            break
-
-    if selected is not None:
-
-        st.markdown(
-            """
 <div class="section-header">
   <div>
     <div class="section-kicker">Fundstück</div>
@@ -330,50 +275,30 @@ if st.session_state.selected_id is not None:
             unsafe_allow_html=True,
         )
 
-        col1, col2 = st.columns(
-            [1.15, 0.85],
-            gap="large"
-        )
+    col1, col2 = st.columns([1.15, 0.85], gap="large")
 
-        with col1:
+    with col1:
+        image = get_item_image(selected)
+        if image is not None:
+            st.image(image)
+        else:
+            st.info("Für dieses Fundstück ist kein Bild gespeichert.")
 
-            image = get_item_image(selected)
+    with col2:
+        safe_name = html.escape(str(selected.get("name") or "Fundstück"))
+        safe_category = html.escape(str(selected.get("category") or "Unbekannt"))
+        safe_location = html.escape(str(selected.get("location") or "Unbekannt"))
+        safe_date = html.escape(str(selected.get("date") or "Unbekannt"))
 
-            if image is not None:
-                st.image(image)
-            else:
-                st.info(
-                    "Für dieses Fundstück ist kein Bild gespeichert."
-                )
+        st.markdown(
+            f"""
 
-        with col2:
-
-            safe_name = html.escape(
-                str(selected.get("name") or "Fundstück")
-            )
-
-            safe_category = html.escape(
-                str(selected.get("category") or "Unbekannt")
-            )
-
-            safe_location = html.escape(
-                str(selected.get("location") or "Unbekannt")
-            )
-
-            safe_date = html.escape(
-                str(selected.get("date") or "Unbekannt")
-            )
-
-            st.markdown(
-                f"""
 <div class="detail-card">
   <div class="detail-title">{safe_name}</div>
-
   <div class="pills">
     <span class="pill pill-main">{safe_category}</span>
     <span class="pill">📍 {safe_location}</span>
   </div>
-
   <div class="detail-label">Gefunden am</div>
   <div class="detail-value">{safe_date}</div>
 </div>
@@ -381,113 +306,65 @@ if st.session_state.selected_id is not None:
                 unsafe_allow_html=True,
             )
 
-            st.markdown(
-                '<div class="detail-label">Beschreibung</div>',
-                unsafe_allow_html=True
-            )
+        st.markdown('<div class="detail-label">Beschreibung</div>', unsafe_allow_html=True)
+        st.write(str(selected.get("description") or "Keine Beschreibung vorhanden."))
+        st.write("")
 
-            st.write(
-                str(
-                    selected.get(
-                        "description",
-                        ""
-                    )
-                    or "Keine Beschreibung vorhanden."
-                )
-            )
+        back_col, delete_col = st.columns(2)
 
-            st.write("")
+        with back_col:
+            if st.button("← Zur Übersicht", key="back_details", use_container_width=True):
+                st.session_state.selected_id = None
+                st.rerun()
 
-            back_col, delete_col = st.columns(2)
+        with delete_col:
+            if st.button("Fundstück löschen", key="delete_details", use_container_width=True):
+                items = [
+                    x for x in items
+                    if str(x.get("id")) != str(selected.get("id"))
+                ]
+                save_items(items)
+                st.session_state.selected_id = None
+                st.rerun()
 
-            with back_col:
+    st.stop()
+else:
+    st.session_state.selected_id = None
 
-                if st.button(
-                    "← Zur Übersicht",
-                    key="back_details",
-                    use_container_width=True
-                ):
-                    st.session_state.selected_id = None
-                    st.rerun()
+============================================================
 
-            with delete_col:
+ÜBERSICHT
 
-                if st.button(
-                    "Fundstück löschen",
-                    key="delete_details",
-                    use_container_width=True
-                ):
-
-                    items = [
-                        x
-                        for x in items
-                        if str(x.get("id"))
-                        != str(selected.get("id"))
-                    ]
-
-                    save_items(items)
-
-                    st.session_state.selected_id = None
-
-                    st.rerun()
-
-        st.stop()
-
-    else:
-        st.session_state.selected_id = None
-
-
-# ============================================================
-# ÜBERSICHT
-# ============================================================
+============================================================
 
 if page == "Übersicht":
+st.markdown(
+"""
 
-    st.markdown(
-        """
 <div class="hero">
   <div class="hero-kicker">Digitales Fundbüro</div>
   <div class="hero-title">Gefunden.<br>Gespeichert.</div>
-  <div class="hero-description">
-    Fundstücke fotografieren, automatisch erkennen und später schnell wiederfinden.
-  </div>
+  <div class="hero-description">Fundstücke fotografieren, automatisch erkennen und später schnell wiederfinden.</div>
 </div>
 """,
         unsafe_allow_html=True,
     )
 
-    categories = {
-        str(x.get("category"))
-        for x in items
-        if x.get("category")
-    }
+categories = {str(x.get("category")) for x in items if x.get("category")}
+locations = {str(x.get("location")) for x in items if x.get("location")}
 
-    locations = {
-        str(x.get("location"))
-        for x in items
-        if x.get("location")
-    }
+stat_cols = st.columns(3, gap="medium")
+stats = [
+    (len(items), "Fundstücke"),
+    (len(categories), "Kategorien"),
+    (len(locations), "Fundorte"),
+]
 
-    stat_cols = st.columns(
-        3,
-        gap="medium"
-    )
+for col, (number, label) in zip(stat_cols, stats):
+    with col:
+        st.markdown(
+            f"""
 
-    stats = [
-        (len(items), "Fundstücke"),
-        (len(categories), "Kategorien"),
-        (len(locations), "Fundorte"),
-    ]
-
-    for col, (number, label) in zip(
-        stat_cols,
-        stats
-    ):
-
-        with col:
-
-            st.markdown(
-                f"""
 <div class="stat-card">
   <div class="stat-number">{number}</div>
   <div class="stat-label">{label}</div>
@@ -496,8 +373,9 @@ if page == "Übersicht":
                 unsafe_allow_html=True,
             )
 
-    st.markdown(
-        """
+st.markdown(
+    """
+
 <div class="section-header">
   <div>
     <div class="section-kicker">Fundstücke</div>
@@ -508,100 +386,55 @@ if page == "Übersicht":
         unsafe_allow_html=True,
     )
 
-    if not items:
+if not items:
+    st.markdown(
+        """
 
-        st.markdown(
-            """
 <div class="empty">
   <div class="empty-icon">🔎</div>
   <div class="empty-title">Noch keine Fundstücke</div>
-  <div class="empty-text">
-    Füge dein erstes Fundstück hinzu und es erscheint hier.
-  </div>
+  <div class="empty-text">Füge dein erstes Fundstück hinzu und es erscheint hier.</div>
 </div>
 """,
             unsafe_allow_html=True,
         )
-
     else:
+        recent_items = list(reversed(items[-6:]))
 
-        recent_items = list(
-            reversed(items[-6:])
-        )
+    for row_start in range(0, len(recent_items), 3):
+        row = recent_items[row_start:row_start + 3]
+        columns = st.columns(3, gap="medium")
 
-        for row_start in range(
-            0,
-            len(recent_items),
-            3
-        ):
+        for col, item in zip(columns, row):
+            with col:
+                image_uri = image_as_data_uri(item)
 
-            row = recent_items[
-                row_start:row_start + 3
-            ]
-
-            columns = st.columns(
-                3,
-                gap="medium"
-            )
-
-            for col, item in zip(
-                columns,
-                row
-            ):
-
-                with col:
-
-                    image_uri = image_as_data_uri(item)
-
-                    if image_uri:
-
-                        image_html = (
-                            '<div class="fund-image-wrap">'
-                            '<img class="fund-image" src="'
-                            + image_uri
-                            + '" alt="Fundstück">'
-                            '</div>'
-                        )
-
-                    else:
-
-                        image_html = (
-                            '<div class="fund-image-wrap">'
-                            '<div style="height:100%;display:flex;'
-                            'align-items:center;justify-content:center;'
-                            'font-size:35px;">🔎</div>'
-                            '</div>'
-                        )
-
-                    name = html.escape(
-                        str(
-                            item.get("name")
-                            or "Fundstück"
-                        )
+                if image_uri:
+                    image_html = (
+                        '<div class="fund-image-wrap">'
+                        '<img class="fund-image" src="'
+                        + image_uri
+                        + '" alt="Fundstück">'
+                        '</div>'
+                    )
+                else:
+                    image_html = (
+                        '<div class="fund-image-wrap">'
+                        '<div style="height:100%;display:flex;align-items:center;justify-content:center;font-size:35px;">🔎</div>'
+                        '</div>'
                     )
 
-                    category = html.escape(
-                        str(
-                            item.get("category")
-                            or "Unbekannt"
-                        )
-                    )
+                name = html.escape(str(item.get("name") or "Fundstück"))
+                category = html.escape(str(item.get("category") or "Unbekannt"))
+                location = html.escape(str(item.get("location") or "Unbekannt"))
 
-                    location = html.escape(
-                        str(
-                            item.get("location")
-                            or "Unbekannt"
-                        )
-                    )
+                st.markdown(
+                    f"""
 
-                    st.markdown(
-                        f"""
 <div class="fund-card">
   {image_html}
-
   <div class="fund-info">
     <div class="fund-name">{name}</div>
-
     <div class="pills">
       <span class="pill pill-main">{category}</span>
       <span class="pill">📍 {location}</span>
@@ -612,27 +445,24 @@ if page == "Übersicht":
                         unsafe_allow_html=True,
                     )
 
-                    if st.button(
-                        "Details →",
-                        key=f"details_{item.get('id')}",
-                        use_container_width=True
-                    ):
+                if st.button(
+                    "Details →",
+                    key=f"details_{item.get('id')}",
+                    use_container_width=True,
+                ):
+                    st.session_state.selected_id = item.get("id")
+                    st.rerun()
 
-                        st.session_state.selected_id = item.get(
-                            "id"
-                        )
+============================================================
 
-                        st.rerun()
+NEUES FUNDSTÜCK
 
-
-# ============================================================
-# NEUES FUNDSTÜCK
-# ============================================================
+============================================================
 
 elif page == "Neues Fundstück":
+st.markdown(
+"""
 
-    st.markdown(
-        """
 <div class="section-header">
   <div>
     <div class="section-kicker">Neu</div>
@@ -643,154 +473,90 @@ elif page == "Neues Fundstück":
         unsafe_allow_html=True,
     )
 
-    left, right = st.columns(
-        [1, 1],
-        gap="large"
+left, right = st.columns([1, 1], gap="large")
+
+with left:
+    st.markdown("### 1. Foto")
+
+    uploaded = st.file_uploader(
+        "Bild hochladen",
+        type=["jpg", "jpeg", "png", "webp"],
+        label_visibility="collapsed",
+        key="file_upload",
     )
 
-    with left:
+    camera = st.camera_input("Oder direkt fotografieren", key="camera_upload")
+    image_source = camera if camera is not None else uploaded
+    current_image = None
 
-        st.markdown("### 1. Foto")
+    if image_source is not None:
+        try:
+            current_image = Image.open(image_source).convert("RGB")
+            st.image(current_image)
+        except Exception:
+            st.error("Das Bild konnte nicht gelesen werden.")
 
-        uploaded = st.file_uploader(
-            "Bild hochladen",
-            type=[
-                "jpg",
-                "jpeg",
-                "png",
-                "webp"
-            ],
-            label_visibility="collapsed",
-            key="file_upload",
-        )
+with right:
+    st.markdown("### 2. Informationen")
 
-        camera = st.camera_input(
-            "Oder direkt fotografieren",
-            key="camera_upload"
-        )
+    name = st.text_input(
+        "Name",
+        placeholder="z. B. Schwarzer Rucksack",
+        key="name_input",
+    )
 
-        image_source = (
-            camera
-            if camera is not None
-            else uploaded
-        )
+    location = st.text_input(
+        "Fundort",
+        placeholder="z. B. Sporthalle",
+        key="location_input",
+    )
 
-        current_image = None
+    description = st.text_area(
+        "Beschreibung",
+        placeholder="Weitere Merkmale oder Hinweise …",
+        height=120,
+        key="description_input",
+    )
 
-        if image_source is not None:
+    if st.button("Fundstück speichern", use_container_width=True, key="save_button"):
+        if current_image is None:
+            st.warning("Bitte zuerst ein Foto auswählen.")
+        elif not location.strip():
+            st.warning("Bitte einen Fundort eintragen.")
+        else:
+            with st.spinner("Bild wird analysiert …"):
+                category, confidence = classify_image(current_image)
 
-            try:
+            if not name.strip():
+                name = "Fundstück"
 
-                current_image = Image.open(
-                    image_source
-                ).convert("RGB")
+            new_item = {
+                "id": datetime.now().strftime("%Y%m%d%H%M%S%f"),
+                "name": name.strip(),
+                "category": category,
+                "location": location.strip(),
+                "date": datetime.now().strftime("%d.%m.%Y"),
+                "description": description.strip(),
+                "image_data": image_to_base64(current_image),
+                "confidence": round(confidence, 4),
+            }
 
-                st.image(current_image)
+            items.append(new_item)
+            save_items(items)
+            st.session_state.page = "Übersicht"
+            st.session_state.main_navigation = "Übersicht"
+            st.rerun()
 
-            except Exception:
+============================================================
 
-                st.error(
-                    "Das Bild konnte nicht gelesen werden."
-                )
+SUCHE
 
-    with right:
-
-        st.markdown("### 2. Informationen")
-
-        name = st.text_input(
-            "Name",
-            placeholder="z. B. Schwarzer Rucksack",
-            key="name_input",
-        )
-
-        location = st.text_input(
-            "Fundort",
-            placeholder="z. B. Sporthalle",
-            key="location_input",
-        )
-
-        description = st.text_area(
-            "Beschreibung",
-            placeholder="Weitere Merkmale oder Hinweise …",
-            height=120,
-            key="description_input",
-        )
-
-        if st.button(
-            "Fundstück speichern",
-            use_container_width=True,
-            key="save_button"
-        ):
-
-            if current_image is None:
-
-                st.warning(
-                    "Bitte zuerst ein Foto auswählen."
-                )
-
-            elif not location.strip():
-
-                st.warning(
-                    "Bitte einen Fundort eintragen."
-                )
-
-            else:
-
-                with st.spinner(
-                    "Bild wird analysiert …"
-                ):
-
-                    category, confidence = classify_image(
-                        current_image
-                    )
-
-                if not name.strip():
-                    name = "Fundstück"
-
-                new_item = {
-                    "id": datetime.now().strftime(
-                        "%Y%m%d%H%M%S%f"
-                    ),
-                    "name": name.strip(),
-                    "category": category,
-                    "location": location.strip(),
-                    "date": datetime.now().strftime(
-                        "%d.%m.%Y"
-                    ),
-                    "description": description.strip(),
-                    "image_data": image_to_base64(
-                        current_image
-                    ),
-                    "confidence": round(
-                        confidence,
-                        4
-                    ),
-                }
-
-                items.append(new_item)
-
-                save_items(items)
-
-                # ==================================================
-                # NEU:
-                # Nach dem erfolgreichen Speichern direkt
-                # zur Startseite / Übersicht zurück.
-                # ==================================================
-
-                st.session_state.page = "Übersicht"
-                st.session_state.selected_id = None
-
-                st.rerun()
-
-
-# ============================================================
-# SUCHE
-# ============================================================
+============================================================
 
 elif page == "Suche":
+st.markdown(
+"""
 
-    st.markdown(
-        """
 <div class="section-header">
   <div>
     <div class="section-kicker">Finden</div>
@@ -801,133 +567,81 @@ elif page == "Suche":
         unsafe_allow_html=True,
     )
 
-    search = st.text_input(
-        "Suche",
-        placeholder="Name, Kategorie oder Fundort …",
-        label_visibility="collapsed",
-        key="search_input",
-    )
+search = st.text_input(
+    "Suche",
+    placeholder="Name, Kategorie oder Fundort …",
+    label_visibility="collapsed",
+    key="search_input",
+)
 
-    search_clean = search.lower().strip()
+search_clean = search.lower().strip()
 
-    if search_clean:
+if search_clean:
+    results = []
+    for item in items:
+        searchable = " ".join([
+            str(item.get("name", "")),
+            str(item.get("category", "")),
+            str(item.get("location", "")),
+            str(item.get("description", "")),
+        ]).lower()
 
-        results = []
+        if search_clean in searchable:
+            results.append(item)
+else:
+    results = list(reversed(items))
 
-        for item in items:
+if not results:
+    st.markdown(
+        """
 
-            searchable = " ".join([
-                str(item.get("name", "")),
-                str(item.get("category", "")),
-                str(item.get("location", "")),
-                str(item.get("description", "")),
-            ]).lower()
-
-            if search_clean in searchable:
-                results.append(item)
-
-    else:
-
-        results = list(
-            reversed(items)
-        )
-
-    if not results:
-
-        st.markdown(
-            """
 <div class="empty">
   <div class="empty-icon">⌕</div>
   <div class="empty-title">Nichts gefunden</div>
-  <div class="empty-text">
-    Versuche einen anderen Suchbegriff.
-  </div>
+  <div class="empty-text">Versuche einen anderen Suchbegriff.</div>
 </div>
 """,
             unsafe_allow_html=True,
         )
-
     else:
-
         st.caption(
-            f"{len(results)} Fundstück"
-            + ("" if len(results) == 1 else "e")
-            + " gefunden"
+            f"{len(results)} Fundstück" + ("" if len(results) == 1 else "e") + " gefunden"
         )
 
-        for row_start in range(
-            0,
-            len(results),
-            3
-        ):
+    for row_start in range(0, len(results), 3):
+        row = results[row_start:row_start + 3]
+        columns = st.columns(3, gap="medium")
 
-            row = results[
-                row_start:row_start + 3
-            ]
+        for col, item in zip(columns, row):
+            with col:
+                image_uri = image_as_data_uri(item)
 
-            columns = st.columns(
-                3,
-                gap="medium"
-            )
-
-            for col, item in zip(
-                columns,
-                row
-            ):
-
-                with col:
-
-                    image_uri = image_as_data_uri(item)
-
-                    if image_uri:
-
-                        image_html = (
-                            '<div class="fund-image-wrap">'
-                            '<img class="fund-image" src="'
-                            + image_uri
-                            + '" alt="Fundstück">'
-                            '</div>'
-                        )
-
-                    else:
-
-                        image_html = (
-                            '<div class="fund-image-wrap">'
-                            '<div style="height:100%;display:flex;'
-                            'align-items:center;justify-content:center;'
-                            'font-size:35px;">🔎</div>'
-                            '</div>'
-                        )
-
-                    name = html.escape(
-                        str(
-                            item.get("name")
-                            or "Fundstück"
-                        )
+                if image_uri:
+                    image_html = (
+                        '<div class="fund-image-wrap">'
+                        '<img class="fund-image" src="'
+                        + image_uri
+                        + '" alt="Fundstück">'
+                        '</div>'
+                    )
+                else:
+                    image_html = (
+                        '<div class="fund-image-wrap">'
+                        '<div style="height:100%;display:flex;align-items:center;justify-content:center;font-size:35px;">🔎</div>'
+                        '</div>'
                     )
 
-                    category = html.escape(
-                        str(
-                            item.get("category")
-                            or "Unbekannt"
-                        )
-                    )
+                name = html.escape(str(item.get("name") or "Fundstück"))
+                category = html.escape(str(item.get("category") or "Unbekannt"))
+                location = html.escape(str(item.get("location") or "Unbekannt"))
 
-                    location = html.escape(
-                        str(
-                            item.get("location")
-                            or "Unbekannt"
-                        )
-                    )
+                st.markdown(
+                    f"""
 
-                    st.markdown(
-                        f"""
 <div class="fund-card">
   {image_html}
-
   <div class="fund-info">
     <div class="fund-name">{name}</div>
-
     <div class="pills">
       <span class="pill pill-main">{category}</span>
       <span class="pill">📍 {location}</span>
@@ -938,14 +652,10 @@ elif page == "Suche":
                         unsafe_allow_html=True,
                     )
 
-                    if st.button(
-                        "Details →",
-                        key=f"search_details_{item.get('id')}",
-                        use_container_width=True
-                    ):
-
-                        st.session_state.selected_id = item.get(
-                            "id"
-                        )
-
-                        st.rerun()
+                if st.button(
+                    "Details →",
+                    key=f"search_details_{item.get('id')}",
+                    use_container_width=True,
+                ):
+                    st.session_state.selected_id = item.get("id")
+                    st.rerun()
